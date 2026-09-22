@@ -1,0 +1,904 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+    <title>Timesheet App</title>
+
+    <!-- PWA setup -->
+    <link rel="manifest" href="./manifest.json">
+    <meta name="theme-color" content="#007bff">
+    <link rel="apple-touch-icon" href="./icon-192.png">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="default">
+    <meta name="apple-mobile-web-app-title" content="Timesheet">
+
+    <!-- นำเข้าไลบรารีสำหรับแปลงเว็บเป็นรูปภาพ -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+    <style>
+        :root { box-sizing: border-box; padding-top: env(safe-area-inset-top, 0px); padding-bottom: env(safe-area-inset-bottom, 0px); }
+        html { scroll-padding-top: env(safe-area-inset-top, 0px); }
+        body { font-family: -apple-system, BlinkMacSystemFont, sans-serif; background: #f4f6f9; padding: 8px; color: #333; margin: 0; }
+        .container { max-width: 650px; margin: 0 auto; background: #fff; padding: 12px; border-radius: 12px; box-shadow: 0 2px 8px rgba(0,0,0,0.1); }
+        h2 { text-align: center; color: #2c3e50; font-size: 1.2rem; margin-bottom: 5px; }
+        .name { text-align: center; font-weight: bold; color: #555; margin-bottom: 15px; font-size: 0.95rem; }
+
+        .tab-bar { display: flex; gap: 6px; margin-bottom: 15px; background: #f0f2f5; padding: 4px; border-radius: 8px; }
+        .tab-btn { flex: 1; padding: 9px 4px; border: none; background: transparent; border-radius: 6px; font-size: 0.8rem; font-weight: bold; color: #666; cursor: pointer; }
+        .tab-btn.active { background: #007bff; color: #fff; }
+        .view { display: none; }
+        .view.active { display: block; }
+
+        .card { background: #f8f9fa; padding: 12px; border-radius: 8px; margin-bottom: 15px; border: 1px solid #e9ecef; }
+        .month-selector { display: flex; gap: 10px; margin-bottom: 10px; }
+        select { flex: 1; padding: 8px; border-radius: 6px; border: 1px solid #ccc; font-size: 0.9rem; }
+
+        .prev-month-inputs { display: flex; align-items: center; gap: 8px; margin-top: 5px; font-size: 0.85rem; flex-wrap: wrap; }
+        .prev-month-inputs input[type="number"] { width: 50px; padding: 6px; text-align: center; border-radius: 6px; border: 1px solid #ccc; font-size: 0.9rem; }
+
+        .save-status { text-align: center; font-size: 0.75rem; color: #28a745; margin-top: 5px; min-height: 15px; }
+        .storage-warning { text-align: center; font-size: 0.75rem; color: #d9534f; margin-top: 5px; }
+
+        table.main-table { width: 100%; border-collapse: collapse; font-size: 0.75rem; text-align: center; table-layout: fixed; }
+        table.main-table th, table.main-table td { border: 1px solid #e0e0e0; padding: 4px 2px; }
+        table.main-table th { background: #007bff; color: white; white-space: nowrap; }
+
+        .table-scroll { overflow-x: auto; max-width: 100%; }
+
+        input[type="time"] { width: 100%; box-sizing: border-box; padding: 4px 1px; border: 1px solid #ccc; border-radius: 4px; font-size: 0.7rem; text-align: center; background: #fff; }
+
+        .summary-box { background: #e8f4fd; padding: 12px; border-radius: 8px; margin-top: 15px; border: 1px solid #bbe1fa; }
+        .money-box { background: #fff8e1; padding: 12px; border-radius: 8px; margin-top: 10px; border: 1px solid #ffe0b2; }
+
+        table.sum-table { width: 100%; font-size: 0.9rem; border: none; }
+        table.sum-table td { padding: 4px 0; border: none; text-align: left; }
+        table.sum-table td:nth-child(2) { text-align: right; font-weight: bold; }
+
+        .note-box { background: #fff3cd; padding: 12px; border-radius: 8px; margin-top: 15px; border: 1px solid #ffeeba; display: flex; align-items: flex-start; gap: 10px; font-size: 0.85rem;}
+
+        .btn { display: block; width: 100%; padding: 12px; border: none; border-radius: 8px; font-size: 1rem; font-weight: bold; color: #fff; margin-top: 15px; cursor: pointer; }
+        .btn-print { background: #28a745; }
+        .btn-print:active { background: #218838; }
+        .btn-secondary { background: #6c757d; margin-top: 10px; }
+        .btn-danger { background: #d9534f; }
+
+        .hide-for-export { display: none !important; }
+
+        /* Monthly summary tab */
+        table.month-table { width: 100%; border-collapse: collapse; font-size: 0.85rem; }
+        table.month-table th, table.month-table td { border: 1px solid #e0e0e0; padding: 6px 4px; text-align: center; }
+        table.month-table th { background: #007bff; color: #fff; }
+        table.month-table td.money-col { text-align: right; font-weight: bold; }
+        table.month-table tr.empty-month td { color: #bbb; }
+        table.month-table tfoot td { background: #fff3cd; font-weight: bold; }
+
+        /* Settings tab */
+        .settings-row { margin-bottom: 14px; }
+        .settings-row label { display: block; font-size: 0.85rem; font-weight: bold; color: #555; margin-bottom: 4px; }
+        .settings-row input[type="number"], .settings-row input[type="text"] { width: 100%; box-sizing: border-box; padding: 8px; border-radius: 6px; border: 1px solid #ccc; font-size: 0.95rem; }
+        .settings-hint { font-size: 0.75rem; color: #888; margin-top: 12px; }
+    </style>
+</head>
+<body>
+<div class="container" id="app">
+    <div class="tab-bar no-export">
+        <button class="tab-btn active" id="tabbtn-daily" onclick="switchTab('daily')">📅 รายวัน</button>
+        <button class="tab-btn" id="tabbtn-monthly" onclick="switchTab('monthly')">💰 สรุปทุกเดือน</button>
+        <button class="tab-btn" id="tabbtn-settings" onclick="switchTab('settings')">⚙️ ตั้งค่า</button>
+    </div>
+
+    <!-- ============ DAILY VIEW ============ -->
+    <div class="view active" id="view-daily">
+        <h2 id="title">Time sheet for September 2026</h2>
+        <div class="name">Name : ณัฐชนน ตันโสรัจประเสริฐ</div>
+
+        <div class="card no-export">
+            <div class="month-selector">
+                <select id="sel-month" onchange="changeMonth()">
+                    <option value="0">January</option><option value="1">February</option><option value="2">March</option>
+                    <option value="3">April</option><option value="4">May</option><option value="5">June</option>
+                    <option value="6">July</option><option value="7">August</option><option value="8" selected>September</option>
+                    <option value="9">October</option><option value="10">November</option><option value="11">December</option>
+                </select>
+                <select id="sel-year" onchange="changeMonth()">
+                    <option value="2025">2025</option><option value="2026" selected>2026</option><option value="2027">2027</option>
+                </select>
+            </div>
+            <div style="font-size: 0.85rem; font-weight: bold; color: #555;">เพิ่มวันจากเดือนก่อนหน้า (ถ้ามี):</div>
+            <div class="prev-month-inputs">
+                <span>วันที่</span>
+                <input type="number" id="prev-start" placeholder="27" min="1" max="31" onchange="updateStructure()">
+                <span>ถึง</span>
+                <input type="number" id="prev-end" placeholder="31" min="1" max="31" onchange="updateStructure()">
+            </div>
+            <div class="save-status" id="saveStatus"></div>
+        </div>
+
+        <div class="table-scroll">
+            <table class="main-table" id="ts-table">
+                <thead>
+                    <tr>
+                        <th style="width: 10%;">วันที่</th>
+                        <th style="width: 12%;">วัน</th>
+                        <th style="width: 20%;">เข้า</th>
+                        <th style="width: 20%;">ออก</th>
+                        <th style="width: 18%;">ชม.รวม</th>
+                        <th style="width: 18%;">โอที</th>
+                        <th class="no-export" style="width: 18%;">รายได้</th>
+                    </tr>
+                </thead>
+                <tbody></tbody>
+            </table>
+        </div>
+
+        <div class="summary-box">
+            <table class="sum-table">
+                <tr><td>รวมเวลาทำงาน:</td><td id="sum-work">0:00 ชั่วโมง</td></tr>
+                <tr><td>รวมเวลาโอที:</td><td id="sum-ot">0:00 ชั่วโมง</td></tr>
+                <tr><td>รวมวันอาทิตย์ (ที่มาทำงาน):</td><td id="sum-sun">0 วัน</td></tr>
+            </table>
+        </div>
+
+        <div class="money-box no-export">
+            <div style="font-weight: bold; margin-bottom: 8px; color: #b78103;">💰 ตารางสรุปรายได้รวมประจำเดือน</div>
+            <table class="sum-table">
+                <tr><td>ฐานเงินเดือน:</td><td id="base-salary-display">25,000.00 บาท</td></tr>
+                <tr><td>ค่าโอทีรวม:</td><td id="sum-ot-money">0.00 บาท</td></tr>
+                <tr><td>ค่าวันอาทิตย์พิเศษรวม:</td><td id="sum-sun-money">0.00 บาท</td></tr>
+                <tr><td colspan="2"><hr style="border: 0; border-top: 1px solid #fce8b2; margin: 8px 0;"></td></tr>
+                <tr style="color: #d9534f; font-size: 1rem;">
+                    <td>รายได้สุทธิรวมทั้งสิ้น:</td><td id="sum-total-money">0.00 บาท</td>
+                </tr>
+            </table>
+        </div>
+
+        <div class="note-box">
+            <label style="font-weight: bold; white-space: nowrap;">หมายเหตุ:</label>
+            <input type="color" id="hl-color" value="#fbbc05" onchange="applyColors()" style="width: 30px; height: 30px; border:none; padding:0; cursor:pointer;" class="no-export">
+            <span id="hl-color-swatch" title="สีของวันที่เดือนก่อนหน้า" style="display:inline-block; width:22px; height:22px; border-radius:5px; border:1px solid #999; flex-shrink:0; margin-top:2px;"></span>
+            <div id="note-text" contenteditable="true" style="flex: 1; padding: 6px; border: 1px solid #ccc; border-radius: 4px; background: #fff; min-height: 20px; outline: none;" onkeyup="saveData()">เป็นเวลาของเดือนสิงหาคม</div>
+        </div>
+
+        <button class="btn btn-print no-export" onclick="downloadImage()">📥 โหลดเป็นรูปภาพ (ซ่อนข้อมูลเงิน)</button>
+    </div>
+
+    <!-- ============ MONTHLY SUMMARY VIEW ============ -->
+    <div class="view" id="view-monthly">
+        <h2>สรุปยอดเงินรายเดือน</h2>
+        <div class="card">
+            <div class="month-selector">
+                <select id="summary-year" onchange="renderMonthlySummary()">
+                    <option value="2025">2025</option>
+                    <option value="2026" selected>2026</option>
+                    <option value="2027">2027</option>
+                </select>
+            </div>
+        </div>
+        <div class="table-scroll">
+            <table class="month-table" id="month-table">
+                <thead>
+                    <tr>
+                        <th>เดือน</th>
+                        <th>ชม.ทำงาน</th>
+                        <th>โอที</th>
+                        <th>วันอาทิตย์</th>
+                        <th>รายได้รวม</th>
+                    </tr>
+                </thead>
+                <tbody id="month-table-body"></tbody>
+                <tfoot>
+                    <tr>
+                        <td>รวมทั้งปี</td>
+                        <td id="year-work">-</td>
+                        <td id="year-ot">-</td>
+                        <td id="year-sun">-</td>
+                        <td class="money-col" id="year-total">0.00 บาท</td>
+                    </tr>
+                </tfoot>
+            </table>
+        </div>
+        <div class="settings-hint">แตะเดือนในตารางเพื่อเปิดดู/แก้ไขรายละเอียดของเดือนนั้นในแท็บ "รายวัน"</div>
+    </div>
+
+    <!-- ============ SETTINGS VIEW ============ -->
+    <div class="view" id="view-settings">
+        <h2>ตั้งค่า</h2>
+        <div class="card">
+            <div class="settings-row">
+                <label>ฐานเงินเดือน (บาท)</label>
+                <input type="number" id="set-baseSalary" step="0.01">
+            </div>
+            <div class="settings-row">
+                <label>อัตราโอที (บาท/ชั่วโมง)</label>
+                <input type="number" id="set-otRate" step="0.01">
+            </div>
+            <div class="settings-row">
+                <label>อัตราค่าตอบแทนวันอาทิตย์ (บาท/วัน)</label>
+                <input type="number" id="set-sunRate" step="0.01">
+            </div>
+            <button class="btn btn-print" onclick="saveRates()">💾 บันทึกค่าตั้งค่า</button>
+            <div class="save-status" id="settingsSaveStatus"></div>
+        </div>
+
+        <div class="card">
+            <div style="font-weight: bold; margin-bottom: 8px;">สำรอง / กู้คืนข้อมูล</div>
+            <div class="settings-hint" style="margin-top:0;">ข้อมูลทั้งหมดเก็บอยู่ในเบราว์เซอร์เครื่องนี้เท่านั้น แนะนำให้โหลดไฟล์สำรองเก็บไว้เป็นระยะ เผื่อล้างแคชหรือเปลี่ยนเครื่อง</div>
+            <button class="btn btn-secondary" onclick="exportBackup()">📤 โหลดไฟล์สำรองข้อมูล (.json)</button>
+            <input type="file" id="import-file-input" accept="application/json" style="display:none" onchange="importBackup(event)">
+            <button class="btn btn-secondary" onclick="document.getElementById('import-file-input').click()">📥 กู้คืนข้อมูลจากไฟล์สำรอง</button>
+        </div>
+    </div>
+</div>
+
+<script>
+    const thDays = ["อา.", "จ.", "อ.", "พ.", "พฤ.", "ศ.", "ส."];
+    const monthsEng = ["January","February","March","April","May","June","July","August","September","October","November","December"];
+    const monthsThai = ["มกราคม","กุมภาพันธ์","มีนาคม","เมษายน","พฤษภาคม","มิถุนายน","กรกฎาคม","สิงหาคม","กันยายน","ตุลาคม","พฤศจิกายน","ธันวาคม"];
+
+    const DEFAULT_RATES = { baseSalary: 25000, otRate: 137.50, sunRate: 733.33 };
+    const RATES_KEY = "timesheet_settings";
+
+    // ข้อมูลเริ่มต้นของแต่ละเดือน (จากไฟล์ Excel ที่แนบ) — key เป็น "ปี_เดือน" (เดือนนับ 0 = ม.ค.)
+    const initDataByMonth = {
+        // กรกฎาคม 2569 (จาก Timesheet_July2026.xlsx)
+        '2026_6': {
+            '1': {in: "08:00", out: "18:00"}, '2': {in: "08:30", out: "18:40"},
+            '3': {in: "08:30", out: "17:30"}, '4': {in: "08:30", out: "22:00"},
+            '5': {in: "08:00", out: "19:00"}, '6': {in: "08:40", out: "18:00"},
+            '7': {in: "08:40", out: "21:00"}, '8': {in: "08:00", out: "18:00"},
+            '9': {in: "08:20", out: "20:00"}, '10': {in: "08:30", out: "21:30"},
+            '11': {in: "08:00", out: "18:30"}, '12': {in: "", out: ""},
+            '13': {in: "09:00", out: "21:20"}, '14': {in: "08:00", out: "20:30"},
+            '15': {in: "08:00", out: "17:30"}, '16': {in: "08:30", out: "19:00"},
+            '17': {in: "08:50", out: "20:30"}, '18': {in: "08:00", out: "18:00"},
+            '19': {in: "", out: ""}, '20': {in: "08:50", out: "21:00"},
+            '21': {in: "08:00", out: "18:30"}, '22': {in: "08:30", out: "17:50"},
+            '23': {in: "08:30", out: "18:30"}, '24': {in: "08:40", out: "20:30"},
+            '25': {in: "08:00", out: "17:00"}, '26': {in: "", out: ""},
+            '27': {in: "08:40", out: "20:00"}, '28': {in: "", out: ""},
+            '29': {in: "08:40", out: "21:00"}, '30': {in: "08:00", out: "21:00"},
+            '31': {in: "", out: ""}
+        },
+        // สิงหาคม 2569 (จาก Timesheet_2026.xlsx) — วันที่ 12 "วันแม่", 13 "ลาป่วย", 28 "ไซต์หยุด" ไม่มีเวลาเข้า-ออก
+        '2026_7': {
+            '1': {in: "08:20", out: "20:30"}, '2': {in: "08:00", out: "18:00"},
+            '3': {in: "08:30", out: "21:30"}, '4': {in: "08:00", out: "19:30"},
+            '5': {in: "08:40", out: "20:30"}, '6': {in: "08:00", out: "19:30"},
+            '7': {in: "08:40", out: "17:40"}, '8': {in: "08:30", out: "18:00"},
+            '9': {in: "", out: ""}, '10': {in: "09:00", out: "21:30"},
+            '11': {in: "08:00", out: "17:40"}, '12': {in: "", out: ""},
+            '13': {in: "", out: ""}, '14': {in: "08:30", out: "17:40"},
+            '15': {in: "09:00", out: "17:30"}, '16': {in: "", out: ""},
+            '17': {in: "08:40", out: "21:00"}, '18': {in: "08:00", out: "18:30"},
+            '19': {in: "08:30", out: "19:30"}, '20': {in: "08:30", out: "17:00"},
+            '21': {in: "08:40", out: "17:30"}, '22': {in: "09:00", out: "21:00"},
+            '23': {in: "08:00", out: "18:00"}, '24': {in: "08:50", out: "22:00"},
+            '25': {in: "08:00", out: "21:30"}, '26': {in: "08:00", out: "17:00"},
+            '27': {in: "08:40", out: "20:00"}, '28': {in: "", out: ""},
+            '29': {in: "08:40", out: "22:00"}, '30': {in: "08:00", out: "20:00"},
+            '31': {in: "08:30", out: "17:40"}
+        },
+        // กันยายน 2569 (จาก Timesheet_SEPTEMBER_2026.xlsx) + แถวสิงหาคม 27-31 (แถบเหลือง) ใช้ค่าจริงจากไฟล์สิงหาคม
+        '2026_8': {
+            '1': {in: "09:00", out: "21:00"}, '2': {in: "08:00", out: "19:40"},
+            '3': {in: "09:00", out: "18:00"}, '4': {in: "08:40", out: "21:00"},
+            '5': {in: "08:00", out: "17:30"}, '6': {in: "", out: ""},
+            '7': {in: "09:00", out: "19:00"}, '8': {in: "08:50", out: "17:00"},
+            '9': {in: "08:50", out: "23:00"}, '10': {in: "08:50", out: "18:00"},
+            '11': {in: "08:40", out: "17:30"}, '12': {in: "09:00", out: "17:30"},
+            '13': {in: "09:10", out: "18:00"}, '14': {in: "09:00", out: "17:30"},
+            '15': {in: "08:40", out: "20:30"}, '16': {in: "08:40", out: "18:00"},
+            '17': {in: "08:40", out: "18:00"}, '18': {in: "08:30", out: "17:30"},
+            '19': {in: "09:00", out: "17:30"}, '20': {in: "", out: ""},
+            '21': {in: "08:50", out: "17:00"}, '22': {in: "08:50", out: ""},
+            '23': {in: "", out: ""}, '24': {in: "", out: ""},
+            '25': {in: "", out: ""}, '26': {in: "", out: ""},
+            '27': {in: "", out: ""}, '28': {in: "", out: ""},
+            '29': {in: "", out: ""}, '30': {in: "", out: ""}
+            // หมายเหตุ: แถวสีเหลือง (สิงหาคม 27-31) ไม่ต้องกำหนดซ้ำที่นี่ — จะดึงจากข้อมูลเดือนสิงหาคมจริงโดยอัตโนมัติ (sync)
+        }
+    };
+
+    window.activeRows = [];
+    window.rowMeta = {};
+
+    // ---- Safe storage wrapper: falls back to in-memory if localStorage is blocked ----
+    const memoryStore = {};
+    let storageAvailable = true;
+    (function testStorage() {
+        try {
+            const k = "__ts_test__";
+            localStorage.setItem(k, "1");
+            localStorage.removeItem(k);
+        } catch (e) {
+            storageAvailable = false;
+        }
+    })();
+    function storageGet(key) {
+        try {
+            if (storageAvailable) return localStorage.getItem(key);
+        } catch (e) {}
+        return memoryStore[key] || null;
+    }
+    function storageSet(key, val) {
+        try {
+            if (storageAvailable) { localStorage.setItem(key, val); return; }
+        } catch (e) {}
+        memoryStore[key] = val;
+    }
+    function storageAllKeys() {
+        let keys = [];
+        try {
+            if (storageAvailable) {
+                for (let i = 0; i < localStorage.length; i++) keys.push(localStorage.key(i));
+            }
+        } catch (e) {}
+        Object.keys(memoryStore).forEach(k => { if (!keys.includes(k)) keys.push(k); });
+        return keys;
+    }
+
+    // ---- Rates (editable in Settings tab) ----
+    function getRates() {
+        const saved = storageGet(RATES_KEY);
+        if (saved) {
+            try {
+                const r = JSON.parse(saved);
+                return {
+                    baseSalary: typeof r.baseSalary === 'number' ? r.baseSalary : DEFAULT_RATES.baseSalary,
+                    otRate: typeof r.otRate === 'number' ? r.otRate : DEFAULT_RATES.otRate,
+                    sunRate: typeof r.sunRate === 'number' ? r.sunRate : DEFAULT_RATES.sunRate
+                };
+            } catch (e) { /* fall through */ }
+        }
+        return { ...DEFAULT_RATES };
+    }
+    function saveRates() {
+        const baseSalary = parseFloat(document.getElementById('set-baseSalary').value);
+        const otRate = parseFloat(document.getElementById('set-otRate').value);
+        const sunRate = parseFloat(document.getElementById('set-sunRate').value);
+        const rates = {
+            baseSalary: isNaN(baseSalary) ? DEFAULT_RATES.baseSalary : baseSalary,
+            otRate: isNaN(otRate) ? DEFAULT_RATES.otRate : otRate,
+            sunRate: isNaN(sunRate) ? DEFAULT_RATES.sunRate : sunRate
+        };
+        storageSet(RATES_KEY, JSON.stringify(rates));
+        const status = document.getElementById('settingsSaveStatus');
+        status.innerText = "💾 บันทึกเรียบร้อย — ใช้กับการคำนวณตั้งแต่ตอนนี้เป็นต้นไป";
+        setTimeout(() => { status.innerText = ""; }, 3000);
+        calc();
+    }
+    function loadRatesIntoForm() {
+        const r = getRates();
+        document.getElementById('set-baseSalary').value = r.baseSalary;
+        document.getElementById('set-otRate').value = r.otRate;
+        document.getElementById('set-sunRate').value = r.sunRate;
+    }
+
+    // ---- Tabs ----
+    function switchTab(name) {
+        ['daily', 'monthly', 'settings'].forEach(t => {
+            document.getElementById(`view-${t}`).classList.toggle('active', t === name);
+            document.getElementById(`tabbtn-${t}`).classList.toggle('active', t === name);
+        });
+        if (name === 'monthly') renderMonthlySummary();
+        if (name === 'settings') loadRatesIntoForm();
+    }
+
+    function getStorageKey() {
+        return `timesheet_${document.getElementById('sel-year').value}_${document.getElementById('sel-month').value}`;
+    }
+
+    function getPrevMonth(y, m) {
+        let pm = m - 1, py = y;
+        if (pm < 0) { pm = 11; py--; }
+        return [py, pm];
+    }
+
+    const DEFAULT_RANGE_KEY = "timesheet_default_range";
+    function getDefaultRange() {
+        const saved = storageGet(DEFAULT_RANGE_KEY);
+        if (saved) {
+            try {
+                const r = JSON.parse(saved);
+                return { start: r.start || "", end: r.end || "" };
+            } catch (e) { /* fall through */ }
+        }
+        return { start: "27", end: "31" };
+    }
+    function saveDefaultRange(start, end) {
+        storageSet(DEFAULT_RANGE_KEY, JSON.stringify({ start, end }));
+    }
+
+    function changeMonth() {
+        const saved = storageGet(getStorageKey());
+        const y = parseInt(document.getElementById('sel-year').value);
+        const m = parseInt(document.getElementById('sel-month').value);
+
+        const prevMonthName = monthsThai[(m - 1 + 12) % 12];
+        document.getElementById('hl-color').value = "#fbbc05";
+        document.getElementById('note-text').innerText = `เป็นเวลาของเดือน${prevMonthName}`;
+
+        const defaultRange = getDefaultRange();
+        document.getElementById('prev-start').value = defaultRange.start;
+        document.getElementById('prev-end').value = defaultRange.end;
+
+        if (saved) {
+            try {
+                const data = JSON.parse(saved);
+                if (data.prevStart !== undefined && data.prevStart !== "") document.getElementById('prev-start').value = data.prevStart;
+                if (data.prevEnd !== undefined && data.prevEnd !== "") document.getElementById('prev-end').value = data.prevEnd;
+                if (data.noteColor) document.getElementById('hl-color').value = data.noteColor;
+                if (data.noteText !== undefined) document.getElementById('note-text').innerText = data.noteText;
+            } catch (e) { /* corrupted save, ignore */ }
+        }
+
+        initTable();
+    }
+
+    function updateStructure() {
+        const start = document.getElementById('prev-start').value;
+        const end = document.getElementById('prev-end').value;
+        if (start !== "" && end !== "") saveDefaultRange(start, end);
+        saveData();
+        initTable();
+    }
+
+    function initTable() {
+        const y = parseInt(document.getElementById('sel-year').value);
+        const m = parseInt(document.getElementById('sel-month').value);
+        document.getElementById('title').innerText = `Time sheet for ${monthsEng[m]} ${y}`;
+
+        let prevStart = parseInt(document.getElementById('prev-start').value);
+        let prevEnd = parseInt(document.getElementById('prev-end').value);
+
+        const tbody = document.querySelector("#ts-table tbody");
+        tbody.innerHTML = '';
+        window.activeRows = [];
+        window.rowMeta = {};
+
+        if (!isNaN(prevStart) && !isNaN(prevEnd) && prevStart <= prevEnd && prevStart >= 1 && prevEnd <= 31) {
+            let prevM = m - 1;
+            let prevY = y;
+            if (prevM < 0) { prevM = 11; prevY--; }
+            const daysInPrevMonth = new Date(prevY, prevM + 1, 0).getDate();
+            for (let d = prevStart; d <= Math.min(prevEnd, daysInPrevMonth); d++) {
+                addRow(tbody, d, prevM, prevY, true);
+            }
+        }
+
+        const daysInMonth = new Date(y, m + 1, 0).getDate();
+        for (let d = 1; d <= daysInMonth; d++) {
+            addRow(tbody, d, m, y, false);
+        }
+
+        applyColors();
+        loadData();
+    }
+
+    function addRow(tbody, d, month, year, isPrev) {
+        const dt = new Date(year, month, d);
+        const dw = dt.getDay();
+        const id = isPrev ? `prev-${d}` : `${d}`;
+
+        window.activeRows.push(id);
+        window.rowMeta[id] = { d: d, m: month, y: year, isPrev: isPrev, isSun: (dw === 0) };
+
+        const tr = document.createElement('tr');
+        tr.id = `row-${id}`;
+        tr.innerHTML = `
+                <td>${d}</td>
+                <td>${thDays[dw]}</td>
+                <td><input type="time" id="in-${id}" oninput="calc()" onchange="calc()"></td>
+                <td><input type="time" id="out-${id}" oninput="calc()" onchange="calc()"></td>
+                <td id="work-${id}">0:00</td>
+                <td id="ot-${id}">0:00</td>
+                <td class="no-export" id="money-${id}">0.00</td>
+        `;
+        tbody.appendChild(tr);
+    }
+
+    function applyColors() {
+        const hlColor = document.getElementById('hl-color').value;
+        const swatch = document.getElementById('hl-color-swatch');
+        if (swatch) swatch.style.backgroundColor = hlColor;
+        window.activeRows.forEach(id => {
+            const row = document.getElementById(`row-${id}`);
+            const meta = window.rowMeta[id];
+            if (!row || !meta) return;
+
+            if (meta.isSun) {
+                row.style.backgroundColor = "#ffe5d0";
+            } else if (meta.isPrev) {
+                row.style.backgroundColor = hlColor;
+            } else {
+                row.style.backgroundColor = "";
+            }
+        });
+        saveData();
+    }
+
+    function formatSignedMins(mins) {
+        const sign = mins < 0 ? "-" : "";
+        const abs = Math.round(Math.abs(mins));
+        return `${sign}${Math.floor(abs / 60)}:${(abs % 60).toString().padStart(2, '0')}`;
+    }
+
+    function fmtMoney(n) {
+        return `${n.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2})} บาท`;
+    }
+
+    function calc() {
+        const rates = getRates();
+        document.getElementById('base-salary-display').innerText = fmtMoney(rates.baseSalary);
+
+        let tWorkMins = 0, tOtMins = 0, tSunCount = 0;
+        let tOtMoney = 0, tSunMoney = 0;
+
+        window.activeRows.forEach(id => {
+            const inEl = document.getElementById(`in-${id}`);
+            const outEl = document.getElementById(`out-${id}`);
+            if (!inEl || !outEl) return;
+            const inVal = inEl.value;
+            const outVal = outEl.value;
+            const meta = window.rowMeta[id];
+            let wStr = "0:00", oStr = "0:00", dayMoney = 0;
+
+            if (inVal && outVal) {
+                const [inH, inM] = inVal.split(':').map(Number);
+                const [outH, outM] = outVal.split(':').map(Number);
+                let start = inH * 60 + inM;
+                let end = outH * 60 + outM;
+                if (end <= start) end += 1440;
+
+                let totalMins = end - start - 60; // หักพักเที่ยง 1 ชม.
+                if (totalMins < 0) totalMins = 0;
+
+                tWorkMins += totalMins;
+                wStr = `${Math.floor(totalMins/60)}:${(totalMins%60).toString().padStart(2,'0')}`;
+
+                // ทำงานเกิน 8 ชม. = โอทีบวก, ทำงานไม่ถึง 8 ชม. = ติดลบ (หักออกจากโอทีรวม)
+                let otMins = totalMins - 480;
+                tOtMins += otMins;
+                oStr = formatSignedMins(otMins);
+
+                let otEarn = (otMins / 60) * rates.otRate;
+                tOtMoney += otEarn;
+
+                if (meta.isSun) {
+                    tSunCount++;
+                    tSunMoney += rates.sunRate;
+                    dayMoney = rates.sunRate + otEarn;
+                } else {
+                    dayMoney = otEarn;
+                }
+            }
+
+            document.getElementById(`work-${id}`).innerText = wStr;
+            document.getElementById(`ot-${id}`).innerText = oStr;
+            document.getElementById(`money-${id}`).innerText = dayMoney.toFixed(2);
+        });
+
+        document.getElementById('sum-work').innerText = `${Math.floor(tWorkMins/60)}:${(tWorkMins%60).toString().padStart(2,'0')} ชั่วโมง`;
+        document.getElementById('sum-ot').innerText = `${formatSignedMins(tOtMins)} ชั่วโมง`;
+        document.getElementById('sum-sun').innerText = `${tSunCount} วัน`;
+
+        document.getElementById('sum-ot-money').innerText = fmtMoney(tOtMoney);
+        document.getElementById('sum-sun-money').innerText = fmtMoney(tSunMoney);
+        document.getElementById('sum-total-money').innerText = fmtMoney(rates.baseSalary + tOtMoney + tSunMoney);
+
+        saveData();
+    }
+
+    function saveData() {
+        const y = parseInt(document.getElementById('sel-year').value);
+        const m = parseInt(document.getElementById('sel-month').value);
+        const [prevY, prevM] = getPrevMonth(y, m);
+        const prevKey = `timesheet_${prevY}_${prevM}`;
+
+        let dataToSave = {
+            prevStart: document.getElementById('prev-start').value,
+            prevEnd: document.getElementById('prev-end').value,
+            noteColor: document.getElementById('hl-color').value,
+            noteText: document.getElementById('note-text').innerText,
+            days: {}
+        };
+
+        let prevMonthObj = null; // โหลดแบบ lazy เฉพาะตอนมีแถวเดือนก่อนหน้าอยู่จริง
+
+        window.activeRows.forEach(id => {
+            const inEl = document.getElementById(`in-${id}`);
+            const outEl = document.getElementById(`out-${id}`);
+            if (!inEl || !outEl) return;
+
+            if (id.startsWith('prev-')) {
+                // เชื่อมข้อมูลไปที่ตารางของเดือนต้นทางจริง แทนการเก็บซ้ำไว้ในเดือนนี้
+                if (!prevMonthObj) {
+                    const raw = storageGet(prevKey);
+                    try { prevMonthObj = raw ? JSON.parse(raw) : {}; } catch (e) { prevMonthObj = {}; }
+                    if (!prevMonthObj.days) prevMonthObj.days = {};
+                }
+                const dayNum = id.replace('prev-', '');
+                prevMonthObj.days[dayNum] = { in: inEl.value, out: outEl.value };
+            } else {
+                dataToSave.days[id] = { in: inEl.value, out: outEl.value };
+            }
+        });
+
+        storageSet(getStorageKey(), JSON.stringify(dataToSave));
+        if (prevMonthObj) storageSet(prevKey, JSON.stringify(prevMonthObj));
+
+        const status = document.getElementById('saveStatus');
+        if (status) {
+            status.innerText = storageAvailable ? "💾 บันทึกอัตโนมัติเรียบร้อย" : "⚠️ บันทึกชั่วคราว (โหมดส่วนตัว/ไม่รองรับการจำข้อมูล)";
+            clearTimeout(window.__statusTimer);
+            window.__statusTimer = setTimeout(() => { status.innerText = ""; }, 2500);
+        }
+    }
+
+    function loadData() {
+        const y = parseInt(document.getElementById('sel-year').value);
+        const m = parseInt(document.getElementById('sel-month').value);
+        const saved = storageGet(getStorageKey());
+        const [prevY, prevM] = getPrevMonth(y, m);
+        const prevSavedRaw = storageGet(`timesheet_${prevY}_${prevM}`);
+
+        const curInit = initDataByMonth[`${y}_${m}`] || {};
+        const prevInit = initDataByMonth[`${prevY}_${prevM}`] || {};
+
+        let savedData = null, prevSavedData = null;
+        try { savedData = saved ? JSON.parse(saved) : null; } catch (e) { savedData = null; }
+        try { prevSavedData = prevSavedRaw ? JSON.parse(prevSavedRaw) : null; } catch (e) { prevSavedData = null; }
+
+        window.activeRows.forEach(id => {
+            const inEl = document.getElementById(`in-${id}`);
+            const outEl = document.getElementById(`out-${id}`);
+            if (!inEl || !outEl) return;
+
+            if (id.startsWith('prev-')) {
+                const dayNum = id.replace('prev-', '');
+                // แถวเดือนก่อนหน้า: อ่านจากตารางของเดือนต้นทางจริง (sync สองทาง ไม่ซ้ำข้อมูล)
+                if (prevInit[dayNum]) {
+                    inEl.value = prevInit[dayNum].in;
+                    outEl.value = prevInit[dayNum].out;
+                }
+                if (prevSavedData && prevSavedData.days && prevSavedData.days[dayNum]) {
+                    if (prevSavedData.days[dayNum].in) inEl.value = prevSavedData.days[dayNum].in;
+                    if (prevSavedData.days[dayNum].out) outEl.value = prevSavedData.days[dayNum].out;
+                }
+            } else {
+                if (curInit[id]) {
+                    inEl.value = curInit[id].in;
+                    outEl.value = curInit[id].out;
+                }
+                if (savedData && savedData.days && savedData.days[id]) {
+                    if (savedData.days[id].in) inEl.value = savedData.days[id].in;
+                    if (savedData.days[id].out) outEl.value = savedData.days[id].out;
+                }
+            }
+        });
+
+        calc();
+    }
+
+    // ---- Monthly summary tab ----
+    function computeMonthTotals(year, month) {
+        const result = { workMins: 0, otMins: 0, sunCount: 0, otMoney: 0, sunMoney: 0, hasData: false };
+        const saved = storageGet(`timesheet_${year}_${month}`);
+        if (!saved) return result;
+        let data;
+        try { data = JSON.parse(saved); } catch (e) { return result; }
+        if (!data.days) return result;
+        const rates = getRates();
+
+        function addDay(entry, y, m, d) {
+            if (!entry || !entry.in || !entry.out) return;
+            result.hasData = true;
+            const isSun = new Date(y, m, d).getDay() === 0;
+            const [inH, inM] = entry.in.split(':').map(Number);
+            const [outH, outM] = entry.out.split(':').map(Number);
+            let start = inH * 60 + inM, end = outH * 60 + outM;
+            if (end <= start) end += 1440;
+            let totalMins = end - start - 60;
+            if (totalMins < 0) totalMins = 0;
+            result.workMins += totalMins;
+            const otMins = totalMins - 480;
+            result.otMins += otMins;
+            result.otMoney += (otMins / 60) * rates.otRate;
+            if (isSun) { result.sunCount++; result.sunMoney += rates.sunRate; }
+        }
+
+        // ถ้าเดือนถัดไปตั้งค่าดึงวันท้ายเดือนนี้ไปรวมกับรอบจ่ายของมัน (แถบเหลือง) ไม่นับซ้ำในเดือนนี้
+        let nextM = month + 1, nextY = year;
+        if (nextM > 11) { nextM = 0; nextY++; }
+        let claimedStart = null, claimedEnd = null;
+        const nextSavedRaw = storageGet(`timesheet_${nextY}_${nextM}`);
+        if (nextSavedRaw) {
+            try {
+                const nextData = JSON.parse(nextSavedRaw);
+                if (nextData.prevStart !== undefined && nextData.prevStart !== "" && nextData.prevEnd !== undefined && nextData.prevEnd !== "") {
+                    claimedStart = parseInt(nextData.prevStart);
+                    claimedEnd = parseInt(nextData.prevEnd);
+                }
+            } catch (e) {}
+        }
+
+        Object.keys(data.days).forEach(id => {
+            if (id.startsWith('prev-')) return; // ข้อมูลเก่าที่อาจหลงเหลือจากก่อนปรับให้ sync — ไม่ใช้แล้ว
+            const dayNum = parseInt(id);
+            if (claimedStart !== null && dayNum >= claimedStart && dayNum <= claimedEnd) return;
+            addDay(data.days[id], year, month, dayNum);
+        });
+
+        // วันท้ายเดือนก่อนหน้าที่ดึงมารวมกับรอบจ่ายของเดือนนี้ (แถบเหลือง)
+        if (data.prevStart !== undefined && data.prevStart !== "" && data.prevEnd !== undefined && data.prevEnd !== "") {
+            let prevM = month - 1, prevY = year;
+            if (prevM < 0) { prevM = 11; prevY--; }
+            const prevSavedRaw = storageGet(`timesheet_${prevY}_${prevM}`);
+            if (prevSavedRaw) {
+                try {
+                    const prevData = JSON.parse(prevSavedRaw);
+                    const s = parseInt(data.prevStart), e = parseInt(data.prevEnd);
+                    if (prevData.days) {
+                        for (let d = s; d <= e; d++) {
+                            if (prevData.days[String(d)]) addDay(prevData.days[String(d)], prevY, prevM, d);
+                        }
+                    }
+                } catch (e) { /* ignore */ }
+            }
+        }
+
+        return result;
+    }
+
+    function renderMonthlySummary() {
+        const year = parseInt(document.getElementById('summary-year').value);
+        const rates = getRates();
+        const tbody = document.getElementById('month-table-body');
+        tbody.innerHTML = '';
+
+        let yWorkMins = 0, yOtMins = 0, ySunCount = 0, yTotalMoney = 0, yMonthsWithData = 0;
+
+        for (let m = 0; m < 12; m++) {
+            const t = computeMonthTotals(year, m);
+            const tr = document.createElement('tr');
+            if (!t.hasData) tr.classList.add('empty-month');
+
+            const totalMoney = t.hasData ? (rates.baseSalary + t.otMoney + t.sunMoney) : 0;
+
+            tr.innerHTML = `
+                <td>${monthsThai[m]}</td>
+                <td>${t.hasData ? Math.floor(t.workMins/60) + ':' + (t.workMins%60).toString().padStart(2,'0') : '-'}</td>
+                <td>${t.hasData ? formatSignedMins(t.otMins) : '-'}</td>
+                <td>${t.hasData ? t.sunCount : '-'}</td>
+                <td class="money-col">${t.hasData ? fmtMoney(totalMoney) : '-'}</td>
+            `;
+            tr.style.cursor = t.hasData ? 'pointer' : 'default';
+            tr.onclick = () => {
+                if (!t.hasData) return;
+                document.getElementById('sel-year').value = year;
+                document.getElementById('sel-month').value = m;
+                switchTab('daily');
+                changeMonth();
+            };
+            tbody.appendChild(tr);
+
+            if (t.hasData) {
+                yWorkMins += t.workMins;
+                yOtMins += t.otMins;
+                ySunCount += t.sunCount;
+                yTotalMoney += totalMoney;
+                yMonthsWithData++;
+            }
+        }
+
+        document.getElementById('year-work').innerText = yMonthsWithData ? `${Math.floor(yWorkMins/60)}:${(yWorkMins%60).toString().padStart(2,'0')}` : '-';
+        document.getElementById('year-ot').innerText = yMonthsWithData ? formatSignedMins(yOtMins) : '-';
+        document.getElementById('year-sun').innerText = yMonthsWithData ? ySunCount : '-';
+        document.getElementById('year-total').innerText = fmtMoney(yTotalMoney);
+    }
+
+    // ---- Backup / restore ----
+    function exportBackup() {
+        const backup = { exportedAt: new Date().toISOString(), data: {} };
+        storageAllKeys().forEach(k => {
+            if (k.startsWith('timesheet_')) backup.data[k] = storageGet(k);
+        });
+        const blob = new Blob([JSON.stringify(backup, null, 2)], { type: 'application/json' });
+        const link = document.createElement('a');
+        link.download = `timesheet_backup_${new Date().toISOString().slice(0,10)}.json`;
+        link.href = URL.createObjectURL(blob);
+        link.click();
+        URL.revokeObjectURL(link.href);
+    }
+
+    function importBackup(event) {
+        const file = event.target.files[0];
+        if (!file) return;
+        const reader = new FileReader();
+        reader.onload = () => {
+            try {
+                const parsed = JSON.parse(reader.result);
+                const entries = parsed.data || parsed; // support raw or wrapped format
+                let count = 0;
+                Object.keys(entries).forEach(k => {
+                    if (k.startsWith('timesheet_')) { storageSet(k, entries[k]); count++; }
+                });
+                alert(`กู้คืนข้อมูลสำเร็จ (${count} รายการ)`);
+                changeMonth();
+                renderMonthlySummary();
+                loadRatesIntoForm();
+            } catch (e) {
+                alert('ไฟล์สำรองไม่ถูกต้อง หรือเสียหาย');
+            }
+            event.target.value = '';
+        };
+        reader.readAsText(file);
+    }
+
+    function downloadImage() {
+        const hideElements = document.querySelectorAll('.no-export');
+        hideElements.forEach(el => el.classList.add('hide-for-export'));
+
+        document.getElementById('app').style.maxWidth = "800px";
+        window.scrollTo(0,0);
+
+        const restoreUI = () => {
+            hideElements.forEach(el => el.classList.remove('hide-for-export'));
+            document.getElementById('app').style.maxWidth = "650px";
+        };
+
+        html2canvas(document.getElementById('view-daily'), {
+            scale: 2,
+            backgroundColor: "#f4f6f9",
+            windowWidth: document.documentElement.scrollWidth,
+            windowHeight: document.documentElement.scrollHeight
+        }).then(canvas => {
+            const monthName = document.getElementById('sel-month').options[document.getElementById('sel-month').selectedIndex].text;
+            const yearName = document.getElementById('sel-year').value;
+            const filename = `Timesheet_${monthName}_${yearName}.png`;
+
+            canvas.toBlob(blob => {
+                restoreUI();
+                if (!blob) { alert("ไม่สามารถสร้างรูปภาพได้ ลองใหม่อีกครั้ง"); return; }
+                const file = new File([blob], filename, { type: "image/png" });
+
+                // มือถือ (โดยเฉพาะ iPhone/Safari): ใช้ Share Sheet เพื่อ "บันทึกรูปภาพ" เพราะ <a download> ใช้ไม่ได้บน iOS Safari
+                if (navigator.canShare && navigator.canShare({ files: [file] })) {
+                    navigator.share({ files: [file], title: filename }).catch(() => { /* ผู้ใช้กดยกเลิก หรือไม่รองรับ ไม่ต้องทำอะไรต่อ */ });
+                    return;
+                }
+
+                if (navigator.msSaveBlob) { navigator.msSaveBlob(blob, filename); return; }
+
+                // เดสก์ท็อป / Android Chrome: ดาวน์โหลดไฟล์ตรง ๆ
+                const url = URL.createObjectURL(blob);
+                const link = document.createElement('a');
+                link.download = filename;
+                link.href = url;
+                document.body.appendChild(link);
+                link.click();
+                document.body.removeChild(link);
+                setTimeout(() => URL.revokeObjectURL(url), 5000);
+            }, 'image/png');
+        }).catch(() => {
+            restoreUI();
+            alert("ไม่สามารถสร้างรูปภาพได้ (การเชื่อมต่ออินเทอร์เน็ตอาจมีปัญหา) ลองใหม่อีกครั้ง");
+        });
+    }
+
+    // Register service worker for offline support (only works when served over http/https, not file://)
+    if ("serviceWorker" in navigator && location.protocol.startsWith("http")) {
+        window.addEventListener("load", () => {
+            navigator.serviceWorker.register("./service-worker.js").catch(() => {});
+        });
+    }
+
+    // เซฟข้อมูลซ้ำอีกชั้นตอนสลับแอป/ปิดแท็บ/รีเฟรช กันข้อมูลหายบนมือถือ (iOS Safari มักไม่ยิง beforeunload)
+    document.addEventListener("visibilitychange", () => { if (document.visibilityState === "hidden") saveData(); });
+    window.addEventListener("pagehide", saveData);
+    window.addEventListener("beforeunload", saveData);
+
+    window.onload = changeMonth;
+</script>
+</body>
+</html>
