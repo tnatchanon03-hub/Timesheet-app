@@ -154,7 +154,7 @@
 
         <div class="note-box">
             <label style="font-weight: bold; white-space: nowrap;">หมายเหตุ:</label>
-            <input type="color" id="hl-color" value="#fbbc05" onchange="applyColors()" style="width: 30px; height: 30px; border:none; padding:0; cursor:pointer;" class="no-export">
+            <input type="color" id="hl-color" value="#fbbc05" onchange="applyColors(); saveData();" style="width: 30px; height: 30px; border:none; padding:0; cursor:pointer;" class="no-export">
             <span id="hl-color-swatch" title="สีของวันที่เดือนก่อนหน้า" style="display:inline-block; width:22px; height:22px; border-radius:5px; border:1px solid #999; flex-shrink:0; margin-top:2px;"></span>
             <div id="note-text" contenteditable="true" style="flex: 1; padding: 6px; border: 1px solid #ccc; border-radius: 4px; background: #fff; min-height: 20px; outline: none;" onkeyup="saveData()">เป็นเวลาของเดือนสิงหาคม</div>
         </div>
@@ -572,7 +572,6 @@
                 row.style.backgroundColor = "";
             }
         });
-        saveData();
     }
 
     function formatSignedMins(mins) {
