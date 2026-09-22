@@ -314,6 +314,63 @@
             storageAvailable = false;
         }
     })();
+
+    // ---- IndexedDB backup mirror: iOS Safari home-screen apps can sometimes clear localStorage
+    // on force-quit/reload; IndexedDB is a separate, more durable store used as a safety net ----
+    const IDB_NAME = "timesheet_idb_backup";
+    const IDB_STORE = "kv";
+    let idbPromise = null;
+    function openIDB() {
+        if (idbPromise) return idbPromise;
+        idbPromise = new Promise((resolve) => {
+            if (!('indexedDB' in window)) { resolve(null); return; }
+            try {
+                const req = indexedDB.open(IDB_NAME, 1);
+                req.onupgradeneeded = () => { req.result.createObjectStore(IDB_STORE); };
+                req.onsuccess = () => resolve(req.result);
+                req.onerror = () => resolve(null);
+            } catch (e) { resolve(null); }
+        });
+        return idbPromise;
+    }
+    async function idbSet(key, val) {
+        const db = await openIDB();
+        if (!db) return;
+        try {
+            const tx = db.transaction(IDB_STORE, 'readwrite');
+            tx.objectStore(IDB_STORE).put(val, key);
+        } catch (e) { /* ignore */ }
+    }
+    async function idbGetAll() {
+        const db = await openIDB();
+        if (!db) return {};
+        return new Promise((resolve) => {
+            try {
+                const tx = db.transaction(IDB_STORE, 'readonly');
+                const store = tx.objectStore(IDB_STORE);
+                const result = {};
+                const req = store.openCursor();
+                req.onsuccess = (e) => {
+                    const cursor = e.target.result;
+                    if (cursor) { result[cursor.key] = cursor.value; cursor.continue(); }
+                    else resolve(result);
+                };
+                req.onerror = () => resolve(result);
+            } catch (e) { resolve({}); }
+        });
+    }
+    // ถ้า localStorage ว่างเปล่าผิดปกติตอนเปิดแอป (ต้องสงสัยว่าโดนระบบล้างข้อมูล) ให้กู้คืนจาก IndexedDB สำรอง
+    async function hydrateFromBackupIfEmpty() {
+        const hasData = storageAllKeys().some(k => k.startsWith('timesheet_'));
+        if (hasData) return;
+        const backup = await idbGetAll();
+        Object.keys(backup).forEach(k => {
+            if (k.startsWith('timesheet_')) {
+                try { localStorage.setItem(k, backup[k]); } catch (e) { memoryStore[k] = backup[k]; }
+            }
+        });
+    }
+
     function storageGet(key) {
         try {
             if (storageAvailable) return localStorage.getItem(key);
@@ -322,9 +379,10 @@
     }
     function storageSet(key, val) {
         try {
-            if (storageAvailable) { localStorage.setItem(key, val); return; }
+            if (storageAvailable) { localStorage.setItem(key, val); }
         } catch (e) {}
-        memoryStore[key] = val;
+        if (!storageAvailable) memoryStore[key] = val;
+        if (key.startsWith('timesheet_')) idbSet(key, val); // สำรองคู่ขนานเสมอ ไม่รอผลลัพธ์
     }
     function storageAllKeys() {
         let keys = [];
@@ -893,12 +951,20 @@
         });
     }
 
+    // ขอให้เบราว์เซอร์ไม่เคลียร์ข้อมูลของแอปนี้ทิ้งเวลาพื้นที่เก็บข้อมูลตึง (ลดโอกาสข้อมูลหายบน iOS)
+    if (navigator.storage && navigator.storage.persist) {
+        navigator.storage.persist().catch(() => {});
+    }
+
     // เซฟข้อมูลซ้ำอีกชั้นตอนสลับแอป/ปิดแท็บ/รีเฟรช กันข้อมูลหายบนมือถือ (iOS Safari มักไม่ยิง beforeunload)
     document.addEventListener("visibilitychange", () => { if (document.visibilityState === "hidden") saveData(); });
     window.addEventListener("pagehide", saveData);
     window.addEventListener("beforeunload", saveData);
 
-    window.onload = changeMonth;
+    // ก่อนเปิดตาราง: เช็กว่า localStorage ถูกล้างไปหรือเปล่า ถ้าใช่ให้กู้คืนจาก IndexedDB สำรองก่อน
+    window.addEventListener("load", () => {
+        hydrateFromBackupIfEmpty().finally(changeMonth);
+    });
 </script>
 </body>
 </html>
