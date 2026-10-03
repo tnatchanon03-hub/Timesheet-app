@@ -280,28 +280,30 @@
             '21': {in: "08:00", out: "18:30"}, '22': {in: "08:30", out: "17:50"},
             '23': {in: "08:30", out: "18:30"}, '24': {in: "08:40", out: "20:30"},
             '25': {in: "08:00", out: "17:00"}, '26': {in: "", out: ""},
-            '27': {in: "08:40", out: "20:00"}, '28': {in: "", out: ""},
-            '29': {in: "08:40", out: "21:00"}, '30': {in: "08:00", out: "21:00"},
-            '31': {in: "", out: ""}
+            // 27-31 ใช้ค่าสุดท้ายจากแถวท้ายของไฟล์ AUGUST/2026 (ไฟล์ July บันทึกก่อนสิ้นเดือน)
+            '27': {in: "08:40", out: "20:00"}, '28': {in: "", out: "", note: "ไซต์หยุด"},
+            '29': {in: "08:40", out: "22:00"}, '30': {in: "08:00", out: "20:00"},
+            '31': {in: "08:30", out: "17:40"}
         },
-        // สิงหาคม 2569 (จาก Timesheet_2026.xlsx) — วันที่ 12 "วันแม่", 13 "ลาป่วย", 28 "ไซต์หยุด" ไม่มีเวลาเข้า-ออก
+        // สิงหาคม 2569 (จาก Timesheet_AUGUST/2026) — 27-31 มาจากแถวท้ายของไฟล์ SEPTEMBER/2026
+        // (แถวท้ายของแต่ละไฟล์คือวันท้ายเดือนก่อนหน้า ดูจากชื่อวันในไฟล์)
         '2026_7': {
             '1': {in: "08:20", out: "20:30"}, '2': {in: "08:00", out: "18:00"},
             '3': {in: "08:30", out: "21:30"}, '4': {in: "08:00", out: "19:30"},
             '5': {in: "08:40", out: "20:30"}, '6': {in: "08:00", out: "19:30"},
             '7': {in: "08:40", out: "17:40"}, '8': {in: "08:30", out: "18:00"},
             '9': {in: "", out: ""}, '10': {in: "09:00", out: "21:30"},
-            '11': {in: "08:00", out: "17:40"}, '12': {in: "", out: ""},
-            '13': {in: "", out: ""}, '14': {in: "08:30", out: "17:40"},
+            '11': {in: "08:00", out: "17:40"}, '12': {in: "", out: "", note: "วันแม่"},
+            '13': {in: "", out: "", note: "ลาป่วย"}, '14': {in: "08:30", out: "17:40"},
             '15': {in: "09:00", out: "17:30"}, '16': {in: "", out: ""},
             '17': {in: "08:40", out: "21:00"}, '18': {in: "08:00", out: "18:30"},
             '19': {in: "08:30", out: "19:30"}, '20': {in: "08:30", out: "17:00"},
             '21': {in: "08:40", out: "17:30"}, '22': {in: "09:00", out: "21:00"},
             '23': {in: "08:00", out: "18:00"}, '24': {in: "08:50", out: "22:00"},
             '25': {in: "08:00", out: "21:30"}, '26': {in: "08:00", out: "17:00"},
-            '27': {in: "08:40", out: "20:00"}, '28': {in: "", out: ""},
-            '29': {in: "08:40", out: "22:00"}, '30': {in: "08:00", out: "20:00"},
-            '31': {in: "08:30", out: "17:40"}
+            '27': {in: "09:00", out: "19:00"}, '28': {in: "08:40", out: "20:00"},
+            '29': {in: "08:00", out: "18:00"}, '30': {in: "", out: ""},
+            '31': {in: "09:00", out: "19:00"}
         },
         // กันยายน 2569 (จาก Timesheet_SEPTEMBER_2026.xlsx) + แถวสิงหาคม 27-31 (แถบเหลือง) ใช้ค่าจริงจากไฟล์สิงหาคม
         '2026_8': {
@@ -1100,6 +1102,7 @@
         Object.keys(remote.days).forEach(d => {
             const r = remote.days[d] || {};
             const l = local.days[d] || (local.days[d] = { in: "", out: "" });
+            if (l.note) return;
             if (!l.in && r.in) l.in = r.in;
             if (!l.out && r.out) l.out = r.out;
         });
@@ -1129,6 +1132,32 @@
             if (changed) storageSet(key, JSON.stringify(obj)); // ไม่ใช่ autoSaving → ถูกส่งขึ้นคลาวด์
         });
         storageSet(SEED_KEY, "1");
+    }
+
+    // แก้ข้อมูลที่เคยบันทึกผิดไว้แล้ว (บนเครื่อง/คลาวด์) ทับค่าเดิมครั้งเดียว — ต่างจาก seed ที่เติมเฉพาะช่องว่าง
+    // เดิมวันท้ายเดือน ส.ค. ถูกใส่เป็นค่าของ ก.ค. (อ่านแถวท้ายไฟล์ Excel ผิดเดือน)
+    const DATA_FIX_KEY = "ts_fix_v1";
+    const DATA_FIXES = {
+        '2026_6': ['27', '28', '29', '30', '31'],
+        '2026_7': ['12', '13', '27', '28', '29', '30', '31']
+    };
+    // ถ้าเปิดซิงก์ไว้ ต้องทำหลังดึงจากคลาวด์ (ใน syncPull) ไม่งั้นค่าผิดบนคลาวด์จะถูกรวมกลับมา
+    function applyDataFixesOnce() {
+        if (storageGet(DATA_FIX_KEY)) return false;
+        Object.keys(DATA_FIXES).forEach(mk => {
+            const key = `timesheet_${mk}`;
+            let obj = null;
+            try { obj = JSON.parse(storageGet(key) || "null"); } catch (e) {}
+            if (!obj) obj = {};
+            if (!obj.days) obj.days = {};
+            DATA_FIXES[mk].forEach(d => {
+                const init = initDataByMonth[mk][d];
+                obj.days[d] = { in: init.in, out: init.out, note: init.note || "" };
+            });
+            storageSet(key, JSON.stringify(obj)); // ไม่ใช่ autoSaving → ถูกส่งขึ้นคลาวด์ และชนะค่าเก่าบนคลาวด์
+        });
+        storageSet(DATA_FIX_KEY, "1");
+        return true;
     }
 
     // ดึงข้อมูลจากคลาวด์มารวมกับเครื่องนี้ คืนค่า true ถ้ามีข้อมูลในเครื่องเปลี่ยน
@@ -1168,6 +1197,7 @@
             });
             setDirty(dirty);
             syncPullDone = true;
+            if (applyDataFixesOnce()) changed = true;
             seedInitDataOnce();
             setSyncStatus(`☁️ ซิงก์กับ Google Sheets แล้ว ${timeNow()}`);
             syncPush();
@@ -1255,6 +1285,7 @@
     window.addEventListener("load", () => {
         selectCurrentMonth();
         hydrateFromBackupIfEmpty().finally(() => {
+            if (!getSyncConfig()) applyDataFixesOnce();
             changeMonth();
             if (getSyncConfig()) syncNow();
         });
