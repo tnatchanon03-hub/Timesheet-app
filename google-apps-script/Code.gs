@@ -80,8 +80,9 @@ function rebuildView_() {
     const y = Number(m[1]), mo = Number(m[2]);
     Object.keys(data.days).forEach(d => {
       const day = data.days[d];
-      if (!/^\d+$/.test(d) || !day || (!day.in && !day.out)) return;
-      out.push([new Date(y, mo, Number(d)), day.in || '', day.out || '']);
+      if (!/^\d+$/.test(d) || !day || (!day.in && !day.out && !day.note)) return;
+      if (day.note) out.push([new Date(y, mo, Number(d)), '', '', day.note]);
+      else out.push([new Date(y, mo, Number(d)), day.in || '', day.out || '', '']);
     });
   });
   out.sort((a, b) => a[0] - b[0]);
@@ -89,11 +90,11 @@ function rebuildView_() {
   let sh = ss.getSheetByName(VIEW_SHEET);
   if (!sh) sh = ss.insertSheet(VIEW_SHEET, 0);
   sh.clearContents();
-  sh.getRange(1, 1, 1, 3).setValues([['วันที่', 'เวลาเข้า', 'เวลาออก']]);
+  sh.getRange(1, 1, 1, 4).setValues([['วันที่', 'เวลาเข้า', 'เวลาออก', 'หมายเหตุ']]);
   sh.setFrozenRows(1);
   if (out.length) {
     sh.getRange(2, 2, out.length, 2).setNumberFormat('@');
-    sh.getRange(2, 1, out.length, 3).setValues(out);
+    sh.getRange(2, 1, out.length, 4).setValues(out);
     sh.getRange(2, 1, out.length, 1).setNumberFormat('dd/mm/yyyy');
   }
 }
