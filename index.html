@@ -77,6 +77,9 @@
         .settings-row label { display: block; font-size: 0.85rem; font-weight: bold; color: #555; margin-bottom: 4px; }
         .settings-row input[type="number"], .settings-row input[type="text"] { width: 100%; box-sizing: border-box; padding: 8px; border-radius: 6px; border: 1px solid #ccc; font-size: 0.95rem; }
         .settings-hint { font-size: 0.75rem; color: #888; margin-top: 12px; }
+        .settings-row input[type="password"], .settings-row input[type="url"] { width: 100%; box-sizing: border-box; padding: 8px; border-radius: 6px; border: 1px solid #ccc; font-size: 0.95rem; }
+        .sync-status { text-align: center; font-size: 0.75rem; color: #888; min-height: 15px; }
+        .sync-status.error { color: #d9534f; }
     </style>
 </head>
 <body>
@@ -112,6 +115,7 @@
                 <input type="number" id="prev-end" placeholder="31" min="1" max="31" onchange="updateStructure()">
             </div>
             <div class="save-status" id="saveStatus"></div>
+            <div class="sync-status" id="syncStatus"></div>
         </div>
 
         <div class="table-scroll">
@@ -221,8 +225,24 @@
         </div>
 
         <div class="card">
+            <div style="font-weight: bold; margin-bottom: 8px;">☁️ ซิงก์ข้อมูลขึ้น Google Sheets</div>
+            <div class="settings-hint" style="margin-top:0; margin-bottom:10px;">ทุกครั้งที่กรอกเวลา แอปจะส่งข้อมูลไปเก็บใน Google Sheet ของคุณอัตโนมัติ ถ้า iPhone ล้างข้อมูลแอป แค่กรอก URL และรหัสลับนี้ใหม่ ข้อมูลทั้งหมดจะถูกดึงกลับมา (ควรจด URL และรหัสลับเก็บไว้ในโน้ต)</div>
+            <div class="settings-row">
+                <label>Web app URL (ลงท้ายด้วย /exec)</label>
+                <input type="url" id="sync-url" placeholder="https://script.google.com/macros/s/.../exec" autocomplete="off" autocapitalize="off" spellcheck="false">
+            </div>
+            <div class="settings-row">
+                <label>รหัสลับ (SECRET)</label>
+                <input type="password" id="sync-secret" autocomplete="off" autocapitalize="off" spellcheck="false">
+            </div>
+            <button class="btn btn-print" onclick="saveSyncConfig()">🔗 บันทึกและซิงก์ตอนนี้</button>
+            <button class="btn btn-secondary" onclick="disconnectSync()">ยกเลิกการซิงก์บนเครื่องนี้</button>
+            <div class="sync-status" id="syncStatusSettings" style="margin-top:8px;"></div>
+        </div>
+
+        <div class="card">
             <div style="font-weight: bold; margin-bottom: 8px;">สำรอง / กู้คืนข้อมูล</div>
-            <div class="settings-hint" style="margin-top:0;">ข้อมูลทั้งหมดเก็บอยู่ในเบราว์เซอร์เครื่องนี้เท่านั้น แนะนำให้โหลดไฟล์สำรองเก็บไว้เป็นระยะ เผื่อล้างแคชหรือเปลี่ยนเครื่อง</div>
+            <div class="settings-hint" style="margin-top:0;">ถ้าไม่ได้เปิดซิงก์ ข้อมูลทั้งหมดจะเก็บอยู่ในเบราว์เซอร์เครื่องนี้เท่านั้น แนะนำให้โหลดไฟล์สำรองเก็บไว้เป็นระยะ เผื่อล้างแคชหรือเปลี่ยนเครื่อง</div>
             <button class="btn btn-secondary" onclick="exportBackup()">📤 โหลดไฟล์สำรองข้อมูล (.json)</button>
             <input type="file" id="import-file-input" accept="application/json" style="display:none" onchange="importBackup(event)">
             <button class="btn btn-secondary" onclick="document.getElementById('import-file-input').click()">📥 กู้คืนข้อมูลจากไฟล์สำรอง</button>
@@ -378,11 +398,17 @@
         return memoryStore[key] || null;
     }
     function storageSet(key, val) {
+        const old = key.startsWith('timesheet_') ? storageGet(key) : null;
         try {
             if (storageAvailable) { localStorage.setItem(key, val); }
         } catch (e) {}
         if (!storageAvailable) memoryStore[key] = val;
-        if (key.startsWith('timesheet_')) idbSet(key, val); // สำรองคู่ขนานเสมอ ไม่รอผลลัพธ์
+        if (key.startsWith('timesheet_')) {
+            idbSet(key, val); // สำรองคู่ขนานเสมอ ไม่รอผลลัพธ์
+            // ส่งขึ้นคลาวด์เฉพาะตอนผู้ใช้แก้จริง ไม่ใช่ตอนแอปเซฟอัตโนมัติขณะเปิดตาราง
+            // (กันกรณีเครื่องโดนล้างข้อมูลแล้วเอาข้อมูลตั้งต้นในโค้ดไปเขียนทับข้อมูลจริงบนคลาวด์)
+            if (old !== val && !autoSaving) markDirty(key);
+        }
     }
     function storageAllKeys() {
         let keys = [];
@@ -439,7 +465,7 @@
             document.getElementById(`tabbtn-${t}`).classList.toggle('active', t === name);
         });
         if (name === 'monthly') renderMonthlySummary();
-        if (name === 'settings') loadRatesIntoForm();
+        if (name === 'settings') { loadRatesIntoForm(); loadSyncConfigIntoForm(); }
     }
 
     function getStorageKey() {
@@ -649,6 +675,7 @@
     // กันเซฟตารางว่างทับข้อมูลจริง: ก่อนตารางโหลดเสร็จตอนเปิดแอป (ระหว่างรอกู้คืนจาก IndexedDB)
     // ถ้ามีการสลับแอป/ปิดหน้าจอ visibilitychange/pagehide จะเรียก saveData() ตอน activeRows ยังว่าง แล้วเขียน days: {} ทับเดือนนั้น
     let tableReady = false;
+    let autoSaving = false;
 
     function saveData() {
         if (!tableReady) return;
@@ -740,7 +767,8 @@
         });
 
         tableReady = true;
-        calc();
+        autoSaving = true;
+        try { calc(); } finally { autoSaving = false; }
     }
 
     // ---- Monthly summary tab ----
@@ -949,6 +977,184 @@
         });
     }
 
+
+    // ---- Cloud sync (Google Sheets ผ่าน Google Apps Script Web app) ----
+    // กติกา: ค่าที่แก้บนเครื่องนี้แต่ยังไม่ได้ส่งขึ้นคลาวด์ (dirty) ชนะเสมอ นอกนั้นยึดค่าบนคลาวด์เป็นหลัก
+    const SYNC_CONFIG_KEY = "ts_sync_config";
+    const SYNC_DIRTY_KEY = "ts_sync_dirty";
+    let syncPullDone = false;
+    let syncPushTimer = null;
+    let syncInFlight = false;
+
+    function getSyncConfig() {
+        try {
+            const c = JSON.parse(storageGet(SYNC_CONFIG_KEY) || "null");
+            if (c && c.url && c.secret) return c;
+        } catch (e) {}
+        return null;
+    }
+    function getDirty() {
+        try { return JSON.parse(storageGet(SYNC_DIRTY_KEY) || "{}") || {}; } catch (e) { return {}; }
+    }
+    function setDirty(d) {
+        try {
+            if (storageAvailable) { localStorage.setItem(SYNC_DIRTY_KEY, JSON.stringify(d)); return; }
+        } catch (e) {}
+        memoryStore[SYNC_DIRTY_KEY] = JSON.stringify(d);
+    }
+    function markDirty(key) {
+        const d = getDirty();
+        d[key] = 1;
+        setDirty(d);
+        scheduleSyncPush();
+    }
+
+    function setSyncStatus(text, isError) {
+        ['syncStatus', 'syncStatusSettings'].forEach(id => {
+            const el = document.getElementById(id);
+            if (!el) return;
+            el.innerText = text;
+            el.classList.toggle('error', !!isError);
+        });
+    }
+    function timeNow() {
+        const n = new Date();
+        return `${n.getHours().toString().padStart(2, '0')}:${n.getMinutes().toString().padStart(2, '0')}`;
+    }
+
+    function scheduleSyncPush() {
+        if (!getSyncConfig() || !syncPullDone) return;
+        clearTimeout(syncPushTimer);
+        syncPushTimer = setTimeout(() => syncPush(), 1500);
+    }
+
+    async function syncPush(keepalive) {
+        const cfg = getSyncConfig();
+        if (!cfg || !syncPullDone || syncInFlight) return;
+        const dirty = getDirty();
+        const keys = Object.keys(dirty);
+        if (!keys.length) return;
+        const items = {};
+        keys.forEach(k => { const v = storageGet(k); if (v !== null) items[k] = v; });
+        syncInFlight = true;
+        try {
+            const res = await fetch(cfg.url, {
+                method: 'POST',
+                headers: { 'Content-Type': 'text/plain;charset=utf-8' }, // text/plain = ไม่มี CORS preflight
+                body: JSON.stringify({ secret: cfg.secret, items }),
+                keepalive: !!keepalive
+            });
+            const out = await res.json();
+            if (!out.ok) throw new Error(out.error || 'error');
+            // ล้าง dirty เฉพาะ key ที่ค่ายังเท่ากับที่ส่งไป (ถ้าระหว่างส่งมีการแก้เพิ่ม จะส่งรอบถัดไป)
+            const d = getDirty();
+            keys.forEach(k => { if (storageGet(k) === (k in items ? items[k] : null)) delete d[k]; });
+            setDirty(d);
+            setSyncStatus(`☁️ ซิงก์ขึ้น Google Sheets แล้ว ${timeNow()}`);
+        } catch (e) {
+            setSyncStatus(e.message === 'unauthorized' ? '☁️ ซิงก์ไม่สำเร็จ: รหัสลับไม่ถูกต้อง' : '☁️ ยังซิงก์ไม่ได้ (ออฟไลน์?) จะลองใหม่อัตโนมัติ', true);
+        } finally {
+            syncInFlight = false;
+        }
+        if (Object.keys(getDirty()).some(k => !keys.includes(k))) scheduleSyncPush();
+    }
+
+    function mergeDays(localRaw, remoteRaw) {
+        let local, remote;
+        try { local = JSON.parse(localRaw); remote = JSON.parse(remoteRaw); } catch (e) { return null; }
+        if (!local || !remote || !local.days || !remote.days) return null;
+        Object.keys(remote.days).forEach(d => {
+            const r = remote.days[d] || {};
+            const l = local.days[d] || (local.days[d] = { in: "", out: "" });
+            if (!l.in && r.in) l.in = r.in;
+            if (!l.out && r.out) l.out = r.out;
+        });
+        return JSON.stringify(local);
+    }
+
+    // ดึงข้อมูลจากคลาวด์มารวมกับเครื่องนี้ คืนค่า true ถ้ามีข้อมูลในเครื่องเปลี่ยน
+    async function syncPull() {
+        const cfg = getSyncConfig();
+        if (!cfg) return false;
+        setSyncStatus('☁️ กำลังซิงก์...');
+        try {
+            const sep = cfg.url.includes('?') ? '&' : '?';
+            const res = await fetch(`${cfg.url}${sep}secret=${encodeURIComponent(cfg.secret)}&t=${Date.now()}`, { cache: 'no-store' });
+            const out = await res.json();
+            if (!out.ok) throw new Error(out.error || 'error');
+            const remote = out.data || {};
+            const dirty = getDirty();
+            let changed = false;
+            Object.keys(remote).forEach(k => {
+                if (!k.startsWith('timesheet_')) return;
+                if (dirty[k]) {
+                    // แก้บนเครื่องนี้ก่อนซิงก์ได้ (เช่นเครื่องเพิ่งโดนล้าง แล้วกรอกตอนออฟไลน์): เติมวันที่เครื่องนี้ว่างจากคลาวด์ ไม่ทับทั้งเดือน
+                    const merged = mergeDays(storageGet(k), remote[k]);
+                    if (merged !== null && merged !== storageGet(k)) {
+                        autoSaving = true;
+                        try { storageSet(k, merged); } finally { autoSaving = false; }
+                        changed = true;
+                    }
+                    return;
+                }
+                if (storageGet(k) !== remote[k]) {
+                    autoSaving = true;
+                    try { storageSet(k, remote[k]); } finally { autoSaving = false; }
+                    changed = true;
+                }
+            });
+            // ข้อมูลที่มีแค่บนเครื่องนี้ (เช่นตอนเริ่มเปิดซิงก์ครั้งแรก) ให้ส่งขึ้นคลาวด์ด้วย
+            storageAllKeys().forEach(k => {
+                if (k.startsWith('timesheet_') && !(k in remote)) dirty[k] = 1;
+            });
+            setDirty(dirty);
+            syncPullDone = true;
+            setSyncStatus(`☁️ ซิงก์กับ Google Sheets แล้ว ${timeNow()}`);
+            syncPush();
+            return changed;
+        } catch (e) {
+            setSyncStatus(e.message === 'unauthorized' ? '☁️ ซิงก์ไม่สำเร็จ: รหัสลับไม่ถูกต้อง' : '☁️ เชื่อมต่อ Google Sheets ไม่ได้ (ออฟไลน์?) จะลองใหม่อัตโนมัติ', true);
+            return false;
+        }
+    }
+
+    async function syncNow() {
+        const changed = await syncPull();
+        if (changed) {
+            changeMonth();
+            if (document.getElementById('view-monthly').classList.contains('active')) renderMonthlySummary();
+            loadRatesIntoForm();
+        }
+    }
+
+    function loadSyncConfigIntoForm() {
+        const cfg = getSyncConfig();
+        document.getElementById('sync-url').value = cfg ? cfg.url : '';
+        document.getElementById('sync-secret').value = cfg ? cfg.secret : '';
+        if (!cfg) setSyncStatus('');
+    }
+    function saveSyncConfig() {
+        const url = document.getElementById('sync-url').value.trim();
+        const secret = document.getElementById('sync-secret').value;
+        if (!/^https:\/\/script\.google(usercontent)?\.com\//.test(url) || !secret) {
+            setSyncStatus('กรุณากรอก Web app URL (https://script.google.com/...) และรหัสลับให้ครบ', true);
+            return;
+        }
+        storageSet(SYNC_CONFIG_KEY, JSON.stringify({ url, secret }));
+        syncPullDone = false;
+        syncNow();
+    }
+    function disconnectSync() {
+        if (!confirm('ยกเลิกการซิงก์บนเครื่องนี้? (ข้อมูลบน Google Sheets ยังอยู่ครบ)')) return;
+        try { localStorage.removeItem(SYNC_CONFIG_KEY); } catch (e) {}
+        delete memoryStore[SYNC_CONFIG_KEY];
+        syncPullDone = false;
+        loadSyncConfigIntoForm();
+        setSyncStatus('');
+    }
+
+    window.addEventListener('online', () => { if (syncPullDone) syncPush(); else syncNow(); });
+
     // Register service worker for offline support (only works when served over http/https, not file://)
     if ("serviceWorker" in navigator && location.protocol.startsWith("http")) {
         window.addEventListener("load", () => {
@@ -962,7 +1168,10 @@
     }
 
     // เซฟข้อมูลซ้ำอีกชั้นตอนสลับแอป/ปิดแท็บ/รีเฟรช กันข้อมูลหายบนมือถือ (iOS Safari มักไม่ยิง beforeunload)
-    document.addEventListener("visibilitychange", () => { if (document.visibilityState === "hidden") saveData(); });
+    document.addEventListener("visibilitychange", () => {
+        if (document.visibilityState === "hidden") { saveData(); syncPush(true); }
+        else if (getSyncConfig()) syncNow(); // กลับมาเปิดแอป: ดึงข้อมูลล่าสุดจากคลาวด์
+    });
     window.addEventListener("pagehide", saveData);
     window.addEventListener("beforeunload", saveData);
 
@@ -985,7 +1194,10 @@
     // ก่อนเปิดตาราง: เช็กว่า localStorage ถูกล้างไปหรือเปล่า ถ้าใช่ให้กู้คืนจาก IndexedDB สำรองก่อน
     window.addEventListener("load", () => {
         selectCurrentMonth();
-        hydrateFromBackupIfEmpty().finally(changeMonth);
+        hydrateFromBackupIfEmpty().finally(() => {
+            changeMonth();
+            if (getSyncConfig()) syncNow();
+        });
     });
 </script>
 </body>
