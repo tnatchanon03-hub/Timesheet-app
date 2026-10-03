@@ -78,6 +78,10 @@
         .settings-row input[type="number"], .settings-row input[type="text"] { width: 100%; box-sizing: border-box; padding: 8px; border-radius: 6px; border: 1px solid #ccc; font-size: 0.95rem; }
         .settings-hint { font-size: 0.75rem; color: #888; margin-top: 12px; }
         .settings-row input[type="password"], .settings-row input[type="url"] { width: 100%; box-sizing: border-box; padding: 8px; border-radius: 6px; border: 1px solid #ccc; font-size: 0.95rem; }
+        td.day-cell { cursor: pointer; text-decoration: underline dotted #aaa; text-underline-offset: 3px; }
+        .day-note { display: none; background: #c8f7c5; color: #1e7e34; font-weight: bold; font-size: 0.85rem; border-radius: 6px; padding: 5px 4px; cursor: pointer; word-break: break-word; }
+        tr.has-note .day-note { display: block; }
+        tr.has-note input[type="time"] { display: none; }
         .sync-status { text-align: center; font-size: 0.75rem; color: #888; min-height: 15px; }
         .sync-status.error { color: #d9534f; }
     </style>
@@ -114,6 +118,7 @@
                 <span>ถึง</span>
                 <input type="number" id="prev-end" placeholder="31" min="1" max="31" onchange="updateStructure()">
             </div>
+            <div class="settings-hint no-export" style="margin-top:6px;">💡 แตะที่ตัวเลขวันที่ เพื่อใส่หมายเหตุแทนเวลา (เช่น ลาป่วย, ลากิจ, วันหยุด)</div>
             <div class="save-status" id="saveStatus"></div>
             <div class="sync-status" id="syncStatus"></div>
         </div>
@@ -310,12 +315,18 @@
             '15': {in: "08:40", out: "20:30"}, '16': {in: "08:40", out: "18:00"},
             '17': {in: "08:40", out: "18:00"}, '18': {in: "08:30", out: "17:30"},
             '19': {in: "09:00", out: "17:30"}, '20': {in: "", out: ""},
-            '21': {in: "08:50", out: "17:00"}, '22': {in: "08:50", out: ""},
-            '23': {in: "", out: ""}, '24': {in: "", out: ""},
-            '25': {in: "", out: ""}, '26': {in: "", out: ""},
-            '27': {in: "", out: ""}, '28': {in: "", out: ""},
-            '29': {in: "", out: ""}, '30': {in: "", out: ""}
+            '21': {in: "08:50", out: "17:00"}, '22': {in: "08:50", out: "17:30"},
+            // 22-30 กู้คืนจากภาพหน้าจอ หลังข้อมูลในเครื่องหายเมื่อ 2 ต.ค.
+            '23': {in: "08:30", out: "23:00"}, '24': {in: "08:00", out: "18:00"},
+            '25': {in: "09:30", out: "19:00"}, '26': {in: "", out: "", note: "ลาป่วย"},
+            '27': {in: "", out: ""}, '28': {in: "08:40", out: "21:00"},
+            '29': {in: "08:00", out: "17:30"}, '30': {in: "08:40", out: "17:00"}
             // หมายเหตุ: แถวสีเหลือง (สิงหาคม 27-31) ไม่ต้องกำหนดซ้ำที่นี่ — จะดึงจากข้อมูลเดือนสิงหาคมจริงโดยอัตโนมัติ (sync)
+        },
+        // ตุลาคม 2569 (กู้คืนหลังข้อมูลในเครื่องหาย)
+        '2026_9': {
+            '1': {in: "08:30", out: "18:30"}, '2': {in: "09:00", out: "17:00"},
+            '3': {in: "08:30", out: ""}
         }
     };
 
@@ -565,20 +576,45 @@
         const id = isPrev ? `prev-${d}` : `${d}`;
 
         window.activeRows.push(id);
-        window.rowMeta[id] = { d: d, m: month, y: year, isPrev: isPrev, isSun: (dw === 0) };
+        window.rowMeta[id] = { d: d, m: month, y: year, isPrev: isPrev, isSun: (dw === 0), note: "" };
 
         const tr = document.createElement('tr');
         tr.id = `row-${id}`;
         tr.innerHTML = `
-                <td>${d}</td>
+                <td class="day-cell" onclick="editNote('${id}')" title="แตะเพื่อใส่หมายเหตุแทนเวลา">${d}</td>
                 <td>${thDays[dw]}</td>
-                <td><input type="time" id="in-${id}" oninput="calc()" onchange="calc()"></td>
-                <td><input type="time" id="out-${id}" oninput="calc()" onchange="calc()"></td>
+                <td id="incell-${id}"><input type="time" id="in-${id}" oninput="calc()" onchange="calc()"><div class="day-note" id="note-${id}" onclick="editNote('${id}')"></div></td>
+                <td id="outcell-${id}"><input type="time" id="out-${id}" oninput="calc()" onchange="calc()"></td>
                 <td id="work-${id}">0:00</td>
                 <td id="ot-${id}">0:00</td>
                 <td class="no-export" id="money-${id}">0.00</td>
         `;
         tbody.appendChild(tr);
+    }
+
+    // หมายเหตุรายวัน (เช่น ลาป่วย) แสดงแทนช่องเวลาเข้า-ออก และไม่นับชั่วโมงทำงานของวันนั้น
+    function setRowNote(id, note) {
+        const meta = window.rowMeta[id];
+        if (!meta) return;
+        meta.note = note || "";
+        const row = document.getElementById(`row-${id}`);
+        row.classList.toggle('has-note', !!meta.note);
+        document.getElementById(`note-${id}`).innerText = meta.note;
+        document.getElementById(`incell-${id}`).colSpan = meta.note ? 2 : 1;
+        document.getElementById(`outcell-${id}`).style.display = meta.note ? 'none' : '';
+        if (meta.note) {
+            document.getElementById(`in-${id}`).value = "";
+            document.getElementById(`out-${id}`).value = "";
+        }
+    }
+    function editNote(id) {
+        const meta = window.rowMeta[id];
+        if (!meta) return;
+        const label = `${meta.d} ${monthsThai[meta.m]}`;
+        const v = prompt(`หมายเหตุวันที่ ${label} (แสดงแทนเวลาเข้า-ออก)\nเช่น ลาป่วย, ลากิจ, ลาพักร้อน, วันหยุด\n\nเว้นว่างแล้วกด OK เพื่อลบหมายเหตุ และกลับไปใส่เวลา`, meta.note);
+        if (v === null) return;
+        setRowNote(id, v.trim());
+        calc();
     }
 
     function applyColors() {
@@ -626,7 +662,7 @@
             const meta = window.rowMeta[id];
             let wStr = "0:00", oStr = "0:00", dayMoney = 0;
 
-            if (inVal && outVal) {
+            if (inVal && outVal && !meta.note) {
                 const [inH, inM] = inVal.split(':').map(Number);
                 const [outH, outM] = outVal.split(':').map(Number);
                 let start = inH * 60 + inM;
@@ -707,9 +743,9 @@
                     if (!prevMonthObj.days) prevMonthObj.days = {};
                 }
                 const dayNum = id.replace('prev-', '');
-                prevMonthObj.days[dayNum] = { in: inEl.value, out: outEl.value };
+                prevMonthObj.days[dayNum] = { in: inEl.value, out: outEl.value, note: window.rowMeta[id].note };
             } else {
-                dataToSave.days[id] = { in: inEl.value, out: outEl.value };
+                dataToSave.days[id] = { in: inEl.value, out: outEl.value, note: window.rowMeta[id].note };
             }
         });
 
@@ -743,27 +779,25 @@
             const outEl = document.getElementById(`out-${id}`);
             if (!inEl || !outEl) return;
 
-            if (id.startsWith('prev-')) {
-                const dayNum = id.replace('prev-', '');
-                // แถวเดือนก่อนหน้า: อ่านจากตารางของเดือนต้นทางจริง (sync สองทาง ไม่ซ้ำข้อมูล)
-                if (prevInit[dayNum]) {
-                    inEl.value = prevInit[dayNum].in;
-                    outEl.value = prevInit[dayNum].out;
-                }
-                if (prevSavedData && prevSavedData.days && prevSavedData.days[dayNum]) {
-                    if (prevSavedData.days[dayNum].in) inEl.value = prevSavedData.days[dayNum].in;
-                    if (prevSavedData.days[dayNum].out) outEl.value = prevSavedData.days[dayNum].out;
-                }
-            } else {
-                if (curInit[id]) {
-                    inEl.value = curInit[id].in;
-                    outEl.value = curInit[id].out;
-                }
-                if (savedData && savedData.days && savedData.days[id]) {
-                    if (savedData.days[id].in) inEl.value = savedData.days[id].in;
-                    if (savedData.days[id].out) outEl.value = savedData.days[id].out;
-                }
+            const isPrev = id.startsWith('prev-');
+            const dayNum = isPrev ? id.replace('prev-', '') : id;
+            // แถวเดือนก่อนหน้า: อ่านจากตารางของเดือนต้นทางจริง (sync สองทาง ไม่ซ้ำข้อมูล)
+            const init = (isPrev ? prevInit : curInit)[dayNum];
+            const src = isPrev ? prevSavedData : savedData;
+            const savedDay = src && src.days ? src.days[dayNum] : null;
+            let note = "";
+            if (init) {
+                inEl.value = init.in;
+                outEl.value = init.out;
+                note = init.note || "";
             }
+            if (savedDay) {
+                if (savedDay.in) inEl.value = savedDay.in;
+                if (savedDay.out) outEl.value = savedDay.out;
+                // ถ้ามีคีย์ note ที่บันทึกไว้ (แม้เป็นค่าว่าง = ผู้ใช้ลบหมายเหตุ) ให้ใช้ค่านั้นแทนข้อมูลตั้งต้น
+                if (typeof savedDay.note === 'string') note = savedDay.note;
+            }
+            setRowNote(id, note);
         });
 
         tableReady = true;
@@ -782,7 +816,7 @@
         const rates = getRates();
 
         function addDay(entry, y, m, d) {
-            if (!entry || !entry.in || !entry.out) return;
+            if (!entry || entry.note || !entry.in || !entry.out) return;
             result.hasData = true;
             const isSun = new Date(y, m, d).getDay() === 0;
             const [inH, inM] = entry.in.split(':').map(Number);
@@ -1072,6 +1106,31 @@
         return JSON.stringify(local);
     }
 
+    // ส่งข้อมูลตั้งต้นที่ฝังในโค้ด (เช่น วันที่กู้คืนหลังข้อมูลหาย) ขึ้นคลาวด์ครั้งเดียว
+    // เติมเฉพาะวันที่ยังว่าง ไม่ทับค่าที่มีอยู่แล้ว — เปลี่ยนเลขเวอร์ชันเมื่อฝังข้อมูลชุดใหม่
+    const SEED_KEY = "ts_seed_v1";
+    function seedInitDataOnce() {
+        if (storageGet(SEED_KEY)) return;
+        Object.keys(initDataByMonth).forEach(mk => {
+            const key = `timesheet_${mk}`;
+            let obj = null;
+            try { obj = JSON.parse(storageGet(key) || "null"); } catch (e) {}
+            if (!obj) obj = {};
+            if (!obj.days) obj.days = {};
+            let changed = false;
+            Object.keys(initDataByMonth[mk]).forEach(d => {
+                const init = initDataByMonth[mk][d];
+                const cur = obj.days[d] || (obj.days[d] = { in: "", out: "" });
+                if (init.note && typeof cur.note !== 'string') { cur.note = init.note; changed = true; }
+                if (cur.note) return;
+                if (!cur.in && init.in) { cur.in = init.in; changed = true; }
+                if (!cur.out && init.out) { cur.out = init.out; changed = true; }
+            });
+            if (changed) storageSet(key, JSON.stringify(obj)); // ไม่ใช่ autoSaving → ถูกส่งขึ้นคลาวด์
+        });
+        storageSet(SEED_KEY, "1");
+    }
+
     // ดึงข้อมูลจากคลาวด์มารวมกับเครื่องนี้ คืนค่า true ถ้ามีข้อมูลในเครื่องเปลี่ยน
     async function syncPull() {
         const cfg = getSyncConfig();
@@ -1109,6 +1168,7 @@
             });
             setDirty(dirty);
             syncPullDone = true;
+            seedInitDataOnce();
             setSyncStatus(`☁️ ซิงก์กับ Google Sheets แล้ว ${timeNow()}`);
             syncPush();
             return changed;
