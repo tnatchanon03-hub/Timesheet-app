@@ -359,13 +359,13 @@
             } catch (e) { resolve({}); }
         });
     }
-    // ถ้า localStorage ว่างเปล่าผิดปกติตอนเปิดแอป (ต้องสงสัยว่าโดนระบบล้างข้อมูล) ให้กู้คืนจาก IndexedDB สำรอง
+    // ตอนเปิดแอป: กู้คืนทุกเดือนที่มีใน IndexedDB สำรองแต่หายไปจาก localStorage (ต้องสงสัยว่าโดนระบบล้างข้อมูล)
+    // เดิมกู้เฉพาะตอน localStorage ว่างทั้งหมด ทำให้ถ้าหายแค่บางเดือนจะไม่ถูกกู้คืน
     async function hydrateFromBackupIfEmpty() {
-        const hasData = storageAllKeys().some(k => k.startsWith('timesheet_'));
-        if (hasData) return;
+        const existing = storageAllKeys();
         const backup = await idbGetAll();
         Object.keys(backup).forEach(k => {
-            if (k.startsWith('timesheet_')) {
+            if (k.startsWith('timesheet_') && !existing.includes(k)) {
                 try { localStorage.setItem(k, backup[k]); } catch (e) { memoryStore[k] = backup[k]; }
             }
         });
@@ -646,7 +646,12 @@
         saveData();
     }
 
+    // กันเซฟตารางว่างทับข้อมูลจริง: ก่อนตารางโหลดเสร็จตอนเปิดแอป (ระหว่างรอกู้คืนจาก IndexedDB)
+    // ถ้ามีการสลับแอป/ปิดหน้าจอ visibilitychange/pagehide จะเรียก saveData() ตอน activeRows ยังว่าง แล้วเขียน days: {} ทับเดือนนั้น
+    let tableReady = false;
+
     function saveData() {
+        if (!tableReady) return;
         const y = parseInt(document.getElementById('sel-year').value);
         const m = parseInt(document.getElementById('sel-month').value);
         const [prevY, prevM] = getPrevMonth(y, m);
@@ -734,6 +739,7 @@
             }
         });
 
+        tableReady = true;
         calc();
     }
 
@@ -960,8 +966,25 @@
     window.addEventListener("pagehide", saveData);
     window.addEventListener("beforeunload", saveData);
 
+    // เปิดแอปมาให้อยู่ที่เดือน/ปีปัจจุบันเสมอ (เดิม hardcode ไว้ที่กันยายน 2026)
+    function selectCurrentMonth() {
+        const now = new Date();
+        const y = String(now.getFullYear());
+        ['sel-year', 'summary-year'].forEach(selId => {
+            const sel = document.getElementById(selId);
+            if (![...sel.options].some(o => o.value === y)) {
+                const opt = document.createElement('option');
+                opt.value = y; opt.text = y;
+                sel.appendChild(opt);
+            }
+            sel.value = y;
+        });
+        document.getElementById('sel-month').value = String(now.getMonth());
+    }
+
     // ก่อนเปิดตาราง: เช็กว่า localStorage ถูกล้างไปหรือเปล่า ถ้าใช่ให้กู้คืนจาก IndexedDB สำรองก่อน
     window.addEventListener("load", () => {
+        selectCurrentMonth();
         hydrateFromBackupIfEmpty().finally(changeMonth);
     });
 </script>
