@@ -1,4 +1,4 @@
-const CACHE_NAME = "timesheet-cache-v9";
+const CACHE_NAME = "timesheet-cache-v10";
 const ASSETS = [
   "./index.html",
   "./manifest.json",
@@ -26,6 +26,8 @@ self.addEventListener("activate", (event) => {
 // (กันปัญหาแอปค้างรันโค้ดเวอร์ชันเก่าที่มีบั๊กที่แก้ไปแล้ว)
 self.addEventListener("fetch", (event) => {
   if (event.request.method !== "GET") return;
+  // ไม่ยุ่งกับคำขอข้ามโดเมน (เช่น ซิงก์กับ Google Sheets) ห้ามแคชข้อมูลซิงก์เด็ดขาด
+  if (new URL(event.request.url).origin !== self.location.origin) return;
   event.respondWith(
     fetch(event.request)
       .then((response) => {
