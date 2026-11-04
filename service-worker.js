@@ -1,9 +1,10 @@
-const CACHE_NAME = "timesheet-cache-v12";
+const CACHE_NAME = "timesheet-cache-v13";
 const ASSETS = [
   "./index.html",
   "./manifest.json",
   "./icon-192.png",
-  "./icon-512.png"
+  "./icon-512.png",
+  "./logo.png"
 ];
 
 self.addEventListener("install", (event) => {

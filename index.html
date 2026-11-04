@@ -1,236 +1,428 @@
 <!DOCTYPE html>
-<html lang="th">
+<html lang="th" data-theme="minimal">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-    <title>Timesheet App</title>
+    <title>Timesheet</title>
 
     <!-- PWA setup -->
     <link rel="manifest" href="./manifest.json">
-    <meta name="theme-color" content="#007bff">
+    <meta name="theme-color" content="#f4f5f6">
     <link rel="apple-touch-icon" href="./icon-192.png">
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="default">
     <meta name="apple-mobile-web-app-title" content="Timesheet">
 
+    <!-- ใส่ธีมก่อนหน้าเว็บแสดงผล กันหน้าจอกะพริบเปลี่ยนสี -->
+    <script>
+        try { document.documentElement.dataset.theme = localStorage.getItem('ts_theme') || 'minimal'; } catch (e) {}
+    </script>
+
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Thai:wght@400;500;600;700&display=swap" rel="stylesheet">
+
     <!-- นำเข้าไลบรารีสำหรับแปลงเว็บเป็นรูปภาพ -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
     <style>
-        :root { box-sizing: border-box; padding-top: env(safe-area-inset-top, 0px); padding-bottom: env(safe-area-inset-bottom, 0px); }
-        html { scroll-padding-top: env(safe-area-inset-top, 0px); }
-        body { font-family: -apple-system, BlinkMacSystemFont, sans-serif; background: #f4f6f9; padding: 8px; color: #333; margin: 0; }
-        .container { max-width: 650px; margin: 0 auto; background: #fff; padding: 12px; border-radius: 12px; box-shadow: 0 2px 8px rgba(0,0,0,0.1); }
-        h2 { text-align: center; color: #2c3e50; font-size: 1.2rem; margin-bottom: 5px; }
-        .name { text-align: center; font-weight: bold; color: #555; margin-bottom: 15px; font-size: 0.95rem; }
+        /* ---------- Themes (จาก theme-factory: Modern Minimalist, Desert Rose, Arctic Frost, Midnight Galaxy) ---------- */
+        :root, [data-theme="minimal"] {
+            --bg: #f4f5f6; --surface: #ffffff; --surface-2: #f1f3f4; --text: #1f2a33; --muted: #6b7885;
+            --border: #e3e6e8; --accent: #36454f; --accent-ink: #ffffff; --accent-soft: #e9edf0;
+            --th-bg: #36454f; --th-ink: #ffffff; --sun-bg: #fbf0e6; --note-bg: #e3f3e6; --note-ink: #1e6b34;
+            --pos: #1e7b45; --neg: #c0392b; --money: #9a6a00; --shadow: 0 1px 2px rgba(16,24,32,.06), 0 4px 16px rgba(16,24,32,.06);
+        }
+        [data-theme="rose"] {
+            --bg: #f6eee8; --surface: #fffaf7; --surface-2: #f6ebe4; --text: #3b1f2d; --muted: #8a6b70;
+            --border: #ecdbd0; --accent: #5d2e46; --accent-ink: #ffffff; --accent-soft: #f1e1e1;
+            --th-bg: #5d2e46; --th-ink: #ffffff; --sun-bg: #f5e1d8; --note-bg: #e7f1e4; --note-ink: #2f6a35;
+            --pos: #2f7a44; --neg: #b3402f; --money: #b87d6d; --shadow: 0 1px 2px rgba(93,46,70,.06), 0 4px 16px rgba(93,46,70,.07);
+        }
+        [data-theme="frost"] {
+            --bg: #eef3f9; --surface: #ffffff; --surface-2: #f2f6fb; --text: #1d2b3f; --muted: #67778d;
+            --border: #dce5f0; --accent: #4a6fa5; --accent-ink: #ffffff; --accent-soft: #dde9f8;
+            --th-bg: #4a6fa5; --th-ink: #ffffff; --sun-bg: #fdefe6; --note-bg: #e2f3ea; --note-ink: #1f6b45;
+            --pos: #1f7a4d; --neg: #c0392b; --money: #4a6fa5; --shadow: 0 1px 2px rgba(29,43,63,.06), 0 4px 16px rgba(29,43,63,.07);
+        }
+        [data-theme="galaxy"] {
+            --bg: #1a1228; --surface: #2b1e3e; --surface-2: #33264a; --text: #e6e6fa; --muted: #a490c2;
+            --border: #43345e; --accent: #a490c2; --accent-ink: #1a1228; --accent-soft: #3a2d55;
+            --th-bg: #4a4e8f; --th-ink: #e6e6fa; --sun-bg: #3d2b48; --note-bg: #29483a; --note-ink: #b9efcc;
+            --pos: #8fe0ab; --neg: #ff9b8f; --money: #e6c88f; --shadow: 0 1px 2px rgba(0,0,0,.3), 0 6px 20px rgba(0,0,0,.25);
+            color-scheme: dark;
+        }
 
-        .tab-bar { display: flex; gap: 6px; margin-bottom: 15px; background: #f0f2f5; padding: 4px; border-radius: 8px; }
-        .tab-btn { flex: 1; padding: 9px 4px; border: none; background: transparent; border-radius: 6px; font-size: 0.8rem; font-weight: bold; color: #666; cursor: pointer; }
-        .tab-btn.active { background: #007bff; color: #fff; }
+        *, *::before, *::after { box-sizing: border-box; }
+        html { scroll-padding-top: env(safe-area-inset-top, 0px); -webkit-text-size-adjust: 100%; }
+        body {
+            margin: 0; background: var(--bg); color: var(--text);
+            font-family: "IBM Plex Sans Thai", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+            font-size: 15px; line-height: 1.45;
+            padding: calc(env(safe-area-inset-top, 0px) + 8px) 12px calc(env(safe-area-inset-bottom, 0px) + 84px);
+            transition: background-color .2s ease;
+        }
+        .container { max-width: 640px; margin: 0 auto; }
+        button, input, select { font: inherit; color: inherit; }
+        .num { font-variant-numeric: tabular-nums; }
+
+        /* ---------- App bar ---------- */
+        .appbar { display: flex; align-items: center; justify-content: space-between; padding: 6px 2px 12px; }
+        .appbar h1 { font-size: 1.25rem; font-weight: 700; margin: 0; letter-spacing: -.01em; }
+        .appbar .sub { font-size: .78rem; color: var(--muted); }
+        .icon-btn { width: 40px; height: 40px; border-radius: 12px; border: 1px solid var(--border); background: var(--surface); display: grid; place-items: center; cursor: pointer; box-shadow: var(--shadow); }
+        .icon-btn svg { width: 20px; height: 20px; stroke: var(--text); }
+
+        /* ---------- Bottom tab bar ---------- */
+        .tab-bar {
+            position: fixed; left: 50%; transform: translateX(-50%); bottom: calc(env(safe-area-inset-bottom, 0px) + 10px);
+            width: min(420px, calc(100% - 24px)); display: flex; gap: 4px; padding: 6px; z-index: 20;
+            background: var(--surface); border: 1px solid var(--border); border-radius: 20px; box-shadow: 0 8px 30px rgba(0,0,0,.14);
+        }
+        .tab-btn { flex: 1; display: flex; flex-direction: column; align-items: center; gap: 2px; padding: 7px 4px; border: 0; border-radius: 14px; background: transparent; color: var(--muted); font-size: .72rem; font-weight: 600; cursor: pointer; }
+        .tab-btn svg { width: 22px; height: 22px; stroke: currentColor; }
+        .tab-btn.active { background: var(--accent-soft); color: var(--accent); }
+        [data-theme="galaxy"] .tab-btn.active { color: var(--text); }
+
         .view { display: none; }
-        .view.active { display: block; }
+        .view.active { display: block; animation: fade .18s ease; }
+        @keyframes fade { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: none; } }
 
-        .card { background: #f8f9fa; padding: 12px; border-radius: 8px; margin-bottom: 15px; border: 1px solid #e9ecef; }
-        .month-selector { display: flex; gap: 10px; margin-bottom: 10px; }
-        select { flex: 1; padding: 8px; border-radius: 6px; border: 1px solid #ccc; font-size: 0.9rem; }
+        /* ---------- Cards ---------- */
+        .card { background: var(--surface); border: 1px solid var(--border); border-radius: 18px; padding: 16px; margin-bottom: 12px; box-shadow: var(--shadow); }
+        .card-title { font-weight: 700; font-size: .95rem; margin: 0 0 10px; display: flex; align-items: center; gap: 8px; }
+        .section-title { font-size: 1.1rem; font-weight: 700; margin: 4px 2px 12px; }
 
-        .prev-month-inputs { display: flex; align-items: center; gap: 8px; margin-top: 5px; font-size: 0.85rem; flex-wrap: wrap; }
-        .prev-month-inputs input[type="number"] { width: 50px; padding: 6px; text-align: center; border-radius: 6px; border: 1px solid #ccc; font-size: 0.9rem; }
+        /* ---------- Month navigator ---------- */
+        .month-nav { display: flex; align-items: center; gap: 8px; margin-bottom: 12px; }
+        .month-nav .pick { flex: 1; display: flex; gap: 6px; background: var(--surface); border: 1px solid var(--border); border-radius: 14px; padding: 4px; box-shadow: var(--shadow); }
+        select { appearance: none; -webkit-appearance: none; border: 0; background: transparent; padding: 8px 10px; border-radius: 10px; font-weight: 600; text-align: center; text-align-last: center; cursor: pointer; }
+        .month-nav select { flex: 1; }
+        .month-nav select:focus-visible, .icon-btn:focus-visible, .btn:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+        .month-selector select { width: 100%; background: var(--surface-2); border: 1px solid var(--border); }
 
-        .save-status { text-align: center; font-size: 0.75rem; color: #28a745; margin-top: 5px; min-height: 15px; }
-        .storage-warning { text-align: center; font-size: 0.75rem; color: #d9534f; margin-top: 5px; }
+        /* ---------- Quick punch ---------- */
+        .punch { display: flex; align-items: center; gap: 12px; }
+        .punch .info { flex: 1; min-width: 0; }
+        .punch .day { font-size: .78rem; color: var(--muted); font-weight: 600; }
+        .punch .clock { font-size: 1.9rem; font-weight: 700; letter-spacing: -.02em; line-height: 1.15; }
+        .punch .times { font-size: .82rem; color: var(--muted); margin-top: 2px; }
+        .punch .times b { color: var(--text); font-weight: 600; }
+        .punch-actions { display: flex; flex-direction: column; gap: 6px; align-items: stretch; }
+        .btn-punch { border: 0; border-radius: 14px; background: var(--accent); color: var(--accent-ink); font-weight: 700; padding: 12px 16px; cursor: pointer; min-width: 128px; }
+        .btn-punch:active { transform: scale(.98); }
+        .btn-ghost { border: 1px solid var(--border); background: transparent; border-radius: 12px; padding: 7px 10px; font-size: .78rem; color: var(--muted); cursor: pointer; }
+        .punch-done { color: var(--pos); font-weight: 600; font-size: .85rem; text-align: center; }
 
-        table.main-table { width: 100%; border-collapse: collapse; font-size: 0.75rem; text-align: center; table-layout: fixed; }
-        table.main-table th, table.main-table td { border: 1px solid #e0e0e0; padding: 4px 2px; }
-        table.main-table th { background: #007bff; color: white; white-space: nowrap; }
+        /* ---------- Timesheet paper (ส่วนนี้คือส่วนที่บันทึกเป็นรูป) ---------- */
+        .sheet { background: var(--surface); border: 1px solid var(--border); border-radius: 20px; padding: 16px 12px 14px; margin-bottom: 12px; box-shadow: var(--shadow); }
+        .letterhead { background: #ffffff; border-radius: 12px; padding: 10px 14px; display: flex; justify-content: center; margin-bottom: 10px; }
+        .letterhead img { display: block; width: 100%; max-width: 340px; height: auto; }
+        .sheet h2 { text-align: center; font-size: 1.15rem; font-weight: 700; margin: 6px 0 2px; letter-spacing: -.01em; }
+        .sheet .name { text-align: center; color: var(--muted); font-weight: 500; font-size: .9rem; margin-bottom: 12px; }
+        .hint { font-size: .75rem; color: var(--muted); margin: -4px 2px 8px; text-align: center; }
 
         .table-scroll { overflow-x: auto; max-width: 100%; }
+        table.main-table { width: 100%; border-collapse: separate; border-spacing: 0; font-size: .78rem; text-align: center; table-layout: fixed; }
+        table.main-table th { background: var(--th-bg); color: var(--th-ink); font-weight: 600; padding: 8px 2px; white-space: nowrap; font-size: .74rem; }
+        table.main-table th:first-child { border-top-left-radius: 10px; }
+        table.main-table th:last-child { border-top-right-radius: 10px; }
+        table.main-table td { border-bottom: 1px solid var(--border); padding: 4px 2px; height: 38px; }
+        table.main-table tr.is-sun td { background: var(--sun-bg); }
+        table.main-table tr.is-today td { box-shadow: inset 0 2px 0 var(--accent), inset 0 -2px 0 var(--accent); }
+        table.main-table tr.flash td { animation: flash 1.2s ease; }
+        @keyframes flash { 0%, 40% { background: var(--accent-soft); } }
+        td.day-cell { cursor: pointer; font-weight: 700; text-decoration: underline dotted var(--muted); text-underline-offset: 3px; }
+        td.dow { color: var(--muted); }
+        td.ot-pos { color: var(--pos); font-weight: 600; }
+        td.ot-neg { color: var(--neg); font-weight: 600; }
+        td.money { color: var(--muted); font-size: .72rem; }
 
-        input[type="time"] { width: 100%; box-sizing: border-box; padding: 4px 1px; border: 1px solid #ccc; border-radius: 4px; font-size: 0.7rem; text-align: center; background: #fff; }
-
-        .summary-box { background: #e8f4fd; padding: 12px; border-radius: 8px; margin-top: 15px; border: 1px solid #bbe1fa; }
-        .money-box { background: #fff8e1; padding: 12px; border-radius: 8px; margin-top: 10px; border: 1px solid #ffe0b2; }
-
-        table.sum-table { width: 100%; font-size: 0.9rem; border: none; }
-        table.sum-table td { padding: 4px 0; border: none; text-align: left; }
-        table.sum-table td:nth-child(2) { text-align: right; font-weight: bold; }
-
-        .note-box { background: #fff3cd; padding: 12px; border-radius: 8px; margin-top: 15px; border: 1px solid #ffeeba; display: flex; align-items: flex-start; gap: 10px; font-size: 0.85rem;}
-
-        .btn { display: block; width: 100%; padding: 12px; border: none; border-radius: 8px; font-size: 1rem; font-weight: bold; color: #fff; margin-top: 15px; cursor: pointer; }
-        .btn-print { background: #28a745; }
-        .btn-print:active { background: #218838; }
-        .btn-secondary { background: #6c757d; margin-top: 10px; }
-        .btn-danger { background: #d9534f; }
-
-        .hide-for-export { display: none !important; }
-
-        /* Monthly summary tab */
-        table.month-table { width: 100%; border-collapse: collapse; font-size: 0.85rem; }
-        table.month-table th, table.month-table td { border: 1px solid #e0e0e0; padding: 6px 4px; text-align: center; }
-        table.month-table th { background: #007bff; color: #fff; }
-        table.month-table td.money-col { text-align: right; font-weight: bold; }
-        table.month-table tr.empty-month td { color: #bbb; }
-        table.month-table tfoot td { background: #fff3cd; font-weight: bold; }
-
-        /* Settings tab */
-        .settings-row { margin-bottom: 14px; }
-        .settings-row label { display: block; font-size: 0.85rem; font-weight: bold; color: #555; margin-bottom: 4px; }
-        .settings-row input[type="number"], .settings-row input[type="text"] { width: 100%; box-sizing: border-box; padding: 8px; border-radius: 6px; border: 1px solid #ccc; font-size: 0.95rem; }
-        .settings-hint { font-size: 0.75rem; color: #888; margin-top: 12px; }
-        .settings-row input[type="password"], .settings-row input[type="url"] { width: 100%; box-sizing: border-box; padding: 8px; border-radius: 6px; border: 1px solid #ccc; font-size: 0.95rem; }
-        td.day-cell { cursor: pointer; text-decoration: underline dotted #aaa; text-underline-offset: 3px; }
-        .day-note { display: none; background: #c8f7c5; color: #1e7e34; font-weight: bold; font-size: 0.85rem; border-radius: 6px; padding: 5px 4px; cursor: pointer; word-break: break-word; }
+        input[type="time"] {
+            width: 100%; padding: 6px 1px; border: 1px solid var(--border); border-radius: 8px; background: var(--surface-2);
+            font-size: .76rem; text-align: center; min-height: 30px; color: var(--text);
+        }
+        input[type="time"]:focus { outline: 2px solid var(--accent); outline-offset: 0; background: var(--surface); }
+        input[type="time"]::-webkit-date-and-time-value { text-align: center; }
+        .day-note { display: none; background: var(--note-bg); color: var(--note-ink); font-weight: 700; font-size: .8rem; border-radius: 8px; padding: 6px 4px; cursor: pointer; word-break: break-word; }
         tr.has-note .day-note { display: block; }
         tr.has-note input[type="time"] { display: none; }
-        .sync-status { text-align: center; font-size: 0.75rem; color: #888; min-height: 15px; }
-        .sync-status.error { color: #d9534f; }
+
+        .summary-box { background: var(--surface-2); border-radius: 14px; padding: 4px 14px; margin-top: 14px; }
+        table.sum-table { width: 100%; font-size: .9rem; border-collapse: collapse; }
+        table.sum-table td { padding: 9px 0; text-align: left; }
+        table.sum-table tr + tr td { border-top: 1px solid var(--border); }
+        table.sum-table td:nth-child(2) { text-align: right; font-weight: 700; font-variant-numeric: tabular-nums; }
+
+        .note-box { margin-top: 12px; display: flex; align-items: center; gap: 10px; font-size: .85rem; }
+        .note-box label { font-weight: 700; white-space: nowrap; }
+        #note-text { flex: 1; padding: 8px 10px; border: 1px solid var(--border); border-radius: 10px; background: var(--surface-2); min-height: 20px; outline: none; }
+        #note-text:focus { border-color: var(--accent); }
+        .swatch { display: inline-block; width: 22px; height: 22px; border-radius: 6px; border: 1px solid rgba(0,0,0,.15); flex-shrink: 0; }
+        input[type="color"] { width: 32px; height: 32px; border: 0; padding: 0; background: none; cursor: pointer; border-radius: 8px; }
+
+        /* ---------- Income ---------- */
+        .money-hero { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; margin-bottom: 6px; }
+        .money-hero .label { color: var(--muted); font-size: .82rem; font-weight: 600; }
+        .money-hero .value { font-size: 1.5rem; font-weight: 700; color: var(--money); font-variant-numeric: tabular-nums; }
+
+        /* ---------- Buttons ---------- */
+        .btn { display: flex; align-items: center; justify-content: center; gap: 8px; width: 100%; padding: 13px; border: 0; border-radius: 14px; font-weight: 700; cursor: pointer; margin-top: 10px; }
+        .btn svg { width: 18px; height: 18px; stroke: currentColor; }
+        .btn-primary, .btn-print { background: var(--accent); color: var(--accent-ink); }
+        .btn-secondary { background: var(--surface-2); color: var(--text); border: 1px solid var(--border); }
+        .btn:active { transform: scale(.99); }
+        .btn-row { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+        .btn-row .btn { margin-top: 0; }
+
+        details.sheet-settings summary { cursor: pointer; font-weight: 700; font-size: .9rem; list-style: none; display: flex; justify-content: space-between; align-items: center; }
+        details.sheet-settings summary::-webkit-details-marker { display: none; }
+        details.sheet-settings summary::after { content: "›"; font-size: 1.2rem; color: var(--muted); transition: transform .15s; }
+        details.sheet-settings[open] summary::after { transform: rotate(90deg); }
+        .prev-month-inputs { display: flex; align-items: center; gap: 8px; margin-top: 10px; font-size: .88rem; flex-wrap: wrap; }
+        .prev-month-inputs input[type="number"] { width: 58px; padding: 8px; text-align: center; border-radius: 10px; border: 1px solid var(--border); background: var(--surface-2); }
+
+        .save-status { text-align: center; font-size: .75rem; color: var(--pos); min-height: 16px; margin-top: 4px; }
+        .sync-status { text-align: center; font-size: .75rem; color: var(--muted); min-height: 16px; }
+        .sync-status.error { color: var(--neg); }
+        .hide-for-export { display: none !important; }
+        body.exporting td.day-cell { text-decoration: none; }
+        body.exporting tr.is-today td { box-shadow: none; }
+
+        /* ---------- Monthly summary ---------- */
+        table.month-table { width: 100%; border-collapse: separate; border-spacing: 0; font-size: .84rem; }
+        table.month-table th { background: var(--th-bg); color: var(--th-ink); font-weight: 600; padding: 9px 4px; }
+        table.month-table th:first-child { border-top-left-radius: 10px; }
+        table.month-table th:last-child { border-top-right-radius: 10px; }
+        table.month-table td { border-bottom: 1px solid var(--border); padding: 10px 4px; text-align: center; font-variant-numeric: tabular-nums; }
+        table.month-table td.money-col { text-align: right; font-weight: 700; padding-right: 8px; }
+        table.month-table tr.empty-month td { color: var(--muted); opacity: .55; }
+        table.month-table tfoot td { background: var(--accent-soft); font-weight: 700; border-bottom: 0; }
+
+        /* ---------- Settings ---------- */
+        .settings-row { margin-bottom: 12px; }
+        .settings-row label { display: block; font-size: .82rem; font-weight: 600; color: var(--muted); margin-bottom: 5px; }
+        .settings-row input, .settings-row select.field { width: 100%; padding: 10px 12px; border-radius: 12px; border: 1px solid var(--border); background: var(--surface-2); font-size: .95rem; text-align: left; text-align-last: left; }
+        .settings-row input:focus { outline: 2px solid var(--accent); outline-offset: 0; }
+        .settings-hint { font-size: .76rem; color: var(--muted); margin-top: 10px; }
+        .theme-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+        .theme-opt { border: 2px solid var(--border); border-radius: 14px; padding: 10px; background: var(--surface-2); cursor: pointer; text-align: left; }
+        .theme-opt.active { border-color: var(--accent); }
+        .theme-opt .dots { display: flex; gap: 4px; margin-bottom: 6px; }
+        .theme-opt .dots i { width: 18px; height: 18px; border-radius: 50%; border: 1px solid rgba(0,0,0,.1); }
+        .theme-opt .t { font-weight: 700; font-size: .85rem; }
+        .theme-opt .d { font-size: .72rem; color: var(--muted); }
+
+        @media (prefers-reduced-motion: reduce) { * { animation: none !important; transition: none !important; } }
     </style>
 </head>
 <body>
 <div class="container" id="app">
-    <div class="tab-bar no-export">
-        <button class="tab-btn active" id="tabbtn-daily" onclick="switchTab('daily')">📅 รายวัน</button>
-        <button class="tab-btn" id="tabbtn-monthly" onclick="switchTab('monthly')">💰 สรุปทุกเดือน</button>
-        <button class="tab-btn" id="tabbtn-settings" onclick="switchTab('settings')">⚙️ ตั้งค่า</button>
-    </div>
+    <header class="appbar no-export">
+        <div>
+            <h1>Timesheet</h1>
+            <div class="sub" id="today-label"></div>
+        </div>
+        <button class="icon-btn" onclick="cycleTheme()" aria-label="เปลี่ยนธีม" title="เปลี่ยนธีม">
+            <svg viewBox="0 0 24 24" fill="none" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3a9 9 0 1 0 0 18c1 0 1.6-.8 1.6-1.6 0-.5-.2-.8-.4-1.1-.3-.3-.4-.7-.4-1.1 0-.9.7-1.6 1.6-1.6H16a5 5 0 0 0 5-5c0-4.1-4-7.6-9-7.6Z"/><circle cx="7.5" cy="10.5" r="1"/><circle cx="10.5" cy="7" r="1"/><circle cx="15" cy="7.5" r="1"/></svg>
+        </button>
+    </header>
+
+    <nav class="tab-bar no-export">
+        <button class="tab-btn active" id="tabbtn-daily" onclick="switchTab('daily')">
+            <svg viewBox="0 0 24 24" fill="none" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3.5" y="5" width="17" height="15.5" rx="3"/><path d="M8 3v4M16 3v4M3.5 10h17"/></svg>รายวัน
+        </button>
+        <button class="tab-btn" id="tabbtn-monthly" onclick="switchTab('monthly')">
+            <svg viewBox="0 0 24 24" fill="none" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/></svg>สรุปทุกเดือน
+        </button>
+        <button class="tab-btn" id="tabbtn-settings" onclick="switchTab('settings')">
+            <svg viewBox="0 0 24 24" fill="none" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1Z"/></svg>ตั้งค่า
+        </button>
+    </nav>
 
     <!-- ============ DAILY VIEW ============ -->
     <div class="view active" id="view-daily">
-        <h2 id="title">Time sheet for September 2026</h2>
-        <div class="name">Name : ณัฐชนน ตันโสรัจประเสริฐ</div>
-
-        <div class="card no-export">
-            <div class="month-selector">
-                <select id="sel-month" onchange="changeMonth()">
+        <div class="month-nav no-export">
+            <button class="icon-btn" onclick="shiftMonth(-1)" aria-label="เดือนก่อนหน้า">
+                <svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m15 18-6-6 6-6"/></svg>
+            </button>
+            <div class="pick">
+                <select id="sel-month" onchange="changeMonth()" aria-label="เดือน">
                     <option value="0">January</option><option value="1">February</option><option value="2">March</option>
                     <option value="3">April</option><option value="4">May</option><option value="5">June</option>
-                    <option value="6">July</option><option value="7">August</option><option value="8" selected>September</option>
+                    <option value="6">July</option><option value="7">August</option><option value="8">September</option>
                     <option value="9">October</option><option value="10">November</option><option value="11">December</option>
                 </select>
-                <select id="sel-year" onchange="changeMonth()">
+                <select id="sel-year" onchange="changeMonth()" aria-label="ปี">
                     <option value="2025">2025</option><option value="2026" selected>2026</option><option value="2027">2027</option>
                 </select>
             </div>
-            <div style="font-size: 0.85rem; font-weight: bold; color: #555;">เพิ่มวันจากเดือนก่อนหน้า (ถ้ามี):</div>
-            <div class="prev-month-inputs">
-                <span>วันที่</span>
-                <input type="number" id="prev-start" placeholder="27" min="1" max="31" onchange="updateStructure()">
-                <span>ถึง</span>
-                <input type="number" id="prev-end" placeholder="31" min="1" max="31" onchange="updateStructure()">
+            <button class="icon-btn" onclick="shiftMonth(1)" aria-label="เดือนถัดไป">
+                <svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 18 6-6-6-6"/></svg>
+            </button>
+        </div>
+
+        <!-- ลงเวลาด่วน: กดปุ่มเดียวบันทึกเวลาเข้า/ออกของวันนี้ -->
+        <section class="card no-export" id="punch-card"></section>
+
+        <section class="sheet" id="sheet">
+            <div class="letterhead"><img src="logo.png" alt="Teerasak Construction (2011) Co., Ltd."></div>
+            <h2 id="title">Time sheet</h2>
+            <div class="name">Name : ณัฐชนน ตันโสรัจประเสริฐ</div>
+            <div class="hint no-export">แตะตัวเลขวันที่ เพื่อใส่หมายเหตุแทนเวลา (เช่น ลาป่วย, ลากิจ)</div>
+
+            <div class="table-scroll">
+                <table class="main-table" id="ts-table">
+                    <thead>
+                        <tr>
+                            <th style="width: 10%;">วันที่</th>
+                            <th style="width: 11%;">วัน</th>
+                            <th style="width: 21%;">เข้า</th>
+                            <th style="width: 21%;">ออก</th>
+                            <th style="width: 15%;">ชม.รวม</th>
+                            <th style="width: 14%;">โอที</th>
+                            <th class="no-export" style="width: 15%;">รายได้</th>
+                        </tr>
+                    </thead>
+                    <tbody></tbody>
+                </table>
             </div>
-            <div class="settings-hint no-export" style="margin-top:6px;">💡 แตะที่ตัวเลขวันที่ เพื่อใส่หมายเหตุแทนเวลา (เช่น ลาป่วย, ลากิจ, วันหยุด)</div>
+
+            <div class="summary-box">
+                <table class="sum-table">
+                    <tr><td>รวมเวลาทำงาน</td><td id="sum-work">0:00 ชั่วโมง</td></tr>
+                    <tr><td>รวมเวลาโอที</td><td id="sum-ot">0:00 ชั่วโมง</td></tr>
+                    <tr><td>รวมวันอาทิตย์ (ที่มาทำงาน)</td><td id="sum-sun">0 วัน</td></tr>
+                </table>
+            </div>
+
+            <div class="note-box">
+                <label>หมายเหตุ:</label>
+                <input type="color" id="hl-color" value="#fbbc05" onchange="applyColors(); saveData();" class="no-export" aria-label="สีแถววันจากเดือนก่อนหน้า">
+                <span id="hl-color-swatch" class="swatch" title="สีของวันที่เดือนก่อนหน้า"></span>
+                <div id="note-text" contenteditable="true" onkeyup="saveData()">เป็นเวลาของเดือนสิงหาคม</div>
+            </div>
+        </section>
+
+        <section class="card no-export">
+            <div class="money-hero">
+                <span class="label">รายได้สุทธิเดือนนี้</span>
+                <span class="value" id="sum-total-money">0.00 บาท</span>
+            </div>
+            <table class="sum-table">
+                <tr><td>ฐานเงินเดือน</td><td id="base-salary-display">25,000.00 บาท</td></tr>
+                <tr><td>ค่าโอทีรวม</td><td id="sum-ot-money">0.00 บาท</td></tr>
+                <tr><td>ค่าวันอาทิตย์พิเศษรวม</td><td id="sum-sun-money">0.00 บาท</td></tr>
+            </table>
+        </section>
+
+        <section class="card no-export">
+            <details class="sheet-settings">
+                <summary>ตั้งค่าชีตเดือนนี้</summary>
+                <div class="settings-hint" style="margin-top:8px;">เพิ่มวันท้ายเดือนก่อนหน้าเข้ามาในรอบนี้ (แถบสี)</div>
+                <div class="prev-month-inputs">
+                    <span>วันที่</span>
+                    <input type="number" id="prev-start" placeholder="27" min="1" max="31" inputmode="numeric" onchange="updateStructure()">
+                    <span>ถึง</span>
+                    <input type="number" id="prev-end" placeholder="31" min="1" max="31" inputmode="numeric" onchange="updateStructure()">
+                </div>
+            </details>
             <div class="save-status" id="saveStatus"></div>
             <div class="sync-status" id="syncStatus"></div>
-        </div>
+        </section>
 
-        <div class="table-scroll">
-            <table class="main-table" id="ts-table">
-                <thead>
-                    <tr>
-                        <th style="width: 10%;">วันที่</th>
-                        <th style="width: 12%;">วัน</th>
-                        <th style="width: 20%;">เข้า</th>
-                        <th style="width: 20%;">ออก</th>
-                        <th style="width: 18%;">ชม.รวม</th>
-                        <th style="width: 18%;">โอที</th>
-                        <th class="no-export" style="width: 18%;">รายได้</th>
-                    </tr>
-                </thead>
-                <tbody></tbody>
-            </table>
+        <div class="btn-row no-export">
+            <button class="btn btn-primary" onclick="downloadImage()">
+                <svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="3"/><circle cx="9" cy="9" r="2"/><path d="m21 15-5-5L5 21"/></svg>บันทึกเป็นรูป
+            </button>
+            <button class="btn btn-secondary" onclick="exportExcel()">
+                <svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8Z"/><path d="M14 3v5h5M9 13l4 5M13 13l-4 5"/></svg>ส่งออก Excel
+            </button>
         </div>
-
-        <div class="summary-box">
-            <table class="sum-table">
-                <tr><td>รวมเวลาทำงาน:</td><td id="sum-work">0:00 ชั่วโมง</td></tr>
-                <tr><td>รวมเวลาโอที:</td><td id="sum-ot">0:00 ชั่วโมง</td></tr>
-                <tr><td>รวมวันอาทิตย์ (ที่มาทำงาน):</td><td id="sum-sun">0 วัน</td></tr>
-            </table>
-        </div>
-
-        <div class="money-box no-export">
-            <div style="font-weight: bold; margin-bottom: 8px; color: #b78103;">💰 ตารางสรุปรายได้รวมประจำเดือน</div>
-            <table class="sum-table">
-                <tr><td>ฐานเงินเดือน:</td><td id="base-salary-display">25,000.00 บาท</td></tr>
-                <tr><td>ค่าโอทีรวม:</td><td id="sum-ot-money">0.00 บาท</td></tr>
-                <tr><td>ค่าวันอาทิตย์พิเศษรวม:</td><td id="sum-sun-money">0.00 บาท</td></tr>
-                <tr><td colspan="2"><hr style="border: 0; border-top: 1px solid #fce8b2; margin: 8px 0;"></td></tr>
-                <tr style="color: #d9534f; font-size: 1rem;">
-                    <td>รายได้สุทธิรวมทั้งสิ้น:</td><td id="sum-total-money">0.00 บาท</td>
-                </tr>
-            </table>
-        </div>
-
-        <div class="note-box">
-            <label style="font-weight: bold; white-space: nowrap;">หมายเหตุ:</label>
-            <input type="color" id="hl-color" value="#fbbc05" onchange="applyColors(); saveData();" style="width: 30px; height: 30px; border:none; padding:0; cursor:pointer;" class="no-export">
-            <span id="hl-color-swatch" title="สีของวันที่เดือนก่อนหน้า" style="display:inline-block; width:22px; height:22px; border-radius:5px; border:1px solid #999; flex-shrink:0; margin-top:2px;"></span>
-            <div id="note-text" contenteditable="true" style="flex: 1; padding: 6px; border: 1px solid #ccc; border-radius: 4px; background: #fff; min-height: 20px; outline: none;" onkeyup="saveData()">เป็นเวลาของเดือนสิงหาคม</div>
-        </div>
-
-        <button class="btn btn-print no-export" onclick="downloadImage()">📥 โหลดเป็นรูปภาพ (ซ่อนข้อมูลเงิน)</button>
+        <div class="settings-hint no-export" style="text-align:center;">รูปภาพจะมีโลโก้บริษัทที่หัวกระดาษ และซ่อนข้อมูลเงินให้อัตโนมัติ</div>
     </div>
 
     <!-- ============ MONTHLY SUMMARY VIEW ============ -->
     <div class="view" id="view-monthly">
-        <h2>สรุปยอดเงินรายเดือน</h2>
+        <div class="section-title">สรุปยอดเงินรายเดือน</div>
         <div class="card">
             <div class="month-selector">
-                <select id="summary-year" onchange="renderMonthlySummary()">
+                <select id="summary-year" onchange="renderMonthlySummary()" aria-label="ปี">
                     <option value="2025">2025</option>
                     <option value="2026" selected>2026</option>
                     <option value="2027">2027</option>
                 </select>
             </div>
         </div>
-        <div class="table-scroll">
-            <table class="month-table" id="month-table">
-                <thead>
-                    <tr>
-                        <th>เดือน</th>
-                        <th>ชม.ทำงาน</th>
-                        <th>โอที</th>
-                        <th>วันอาทิตย์</th>
-                        <th>รายได้รวม</th>
-                    </tr>
-                </thead>
-                <tbody id="month-table-body"></tbody>
-                <tfoot>
-                    <tr>
-                        <td>รวมทั้งปี</td>
-                        <td id="year-work">-</td>
-                        <td id="year-ot">-</td>
-                        <td id="year-sun">-</td>
-                        <td class="money-col" id="year-total">0.00 บาท</td>
-                    </tr>
-                </tfoot>
-            </table>
+        <div class="card" style="padding:10px;">
+            <div class="table-scroll">
+                <table class="month-table" id="month-table">
+                    <thead>
+                        <tr>
+                            <th>เดือน</th>
+                            <th>ชม.ทำงาน</th>
+                            <th>โอที</th>
+                            <th>อาทิตย์</th>
+                            <th>รายได้รวม</th>
+                        </tr>
+                    </thead>
+                    <tbody id="month-table-body"></tbody>
+                    <tfoot>
+                        <tr>
+                            <td>รวมทั้งปี</td>
+                            <td id="year-work">-</td>
+                            <td id="year-ot">-</td>
+                            <td id="year-sun">-</td>
+                            <td class="money-col" id="year-total">0.00 บาท</td>
+                        </tr>
+                    </tfoot>
+                </table>
+            </div>
         </div>
-        <div class="settings-hint">แตะเดือนในตารางเพื่อเปิดดู/แก้ไขรายละเอียดของเดือนนั้นในแท็บ "รายวัน"</div>
+        <div class="settings-hint" style="text-align:center;">แตะเดือนในตารางเพื่อเปิดดู/แก้ไขในแท็บ "รายวัน"</div>
     </div>
 
     <!-- ============ SETTINGS VIEW ============ -->
     <div class="view" id="view-settings">
-        <h2>ตั้งค่า</h2>
+        <div class="section-title">ตั้งค่า</div>
+
         <div class="card">
+            <div class="card-title">ธีม</div>
+            <div class="theme-grid" id="theme-grid"></div>
+        </div>
+
+        <div class="card">
+            <div class="card-title">ค่าตอบแทน</div>
             <div class="settings-row">
                 <label>ฐานเงินเดือน (บาท)</label>
-                <input type="number" id="set-baseSalary" step="0.01">
+                <input type="number" id="set-baseSalary" step="0.01" inputmode="decimal">
             </div>
             <div class="settings-row">
                 <label>อัตราโอที (บาท/ชั่วโมง)</label>
-                <input type="number" id="set-otRate" step="0.01">
+                <input type="number" id="set-otRate" step="0.01" inputmode="decimal">
             </div>
             <div class="settings-row">
                 <label>อัตราค่าตอบแทนวันอาทิตย์ (บาท/วัน)</label>
-                <input type="number" id="set-sunRate" step="0.01">
+                <input type="number" id="set-sunRate" step="0.01" inputmode="decimal">
             </div>
-            <button class="btn btn-print" onclick="saveRates()">💾 บันทึกค่าตั้งค่า</button>
+            <button class="btn btn-primary" onclick="saveRates()">บันทึกค่าตั้งค่า</button>
             <div class="save-status" id="settingsSaveStatus"></div>
         </div>
 
         <div class="card">
-            <div style="font-weight: bold; margin-bottom: 8px;">☁️ ซิงก์ข้อมูลขึ้น Google Sheets</div>
+            <div class="card-title">ลงเวลาด่วน</div>
+            <div class="settings-row" style="margin-bottom:0;">
+                <label>ปัดเวลาเมื่อกดปุ่มลงเวลา</label>
+                <select class="field" id="set-punchRound" onchange="savePunchRound()">
+                    <option value="0">ไม่ปัด (ใช้เวลาจริง)</option>
+                    <option value="5">ทุก 5 นาที</option>
+                    <option value="10">ทุก 10 นาที</option>
+                </select>
+            </div>
+            <div class="settings-hint">เวลาเข้าปัดขึ้น เวลาออกปัดลง เช่น ปัดทุก 10 นาที: เข้า 08:32 → 08:40, ออก 17:38 → 17:30</div>
+        </div>
+
+        <div class="card">
+            <div class="card-title">ซิงก์ข้อมูลขึ้น Google Sheets</div>
             <div class="settings-hint" style="margin-top:0; margin-bottom:10px;">ทุกครั้งที่กรอกเวลา แอปจะส่งข้อมูลไปเก็บใน Google Sheet ของคุณอัตโนมัติ ถ้า iPhone ล้างข้อมูลแอป แค่กรอก URL และรหัสลับนี้ใหม่ ข้อมูลทั้งหมดจะถูกดึงกลับมา (ควรจด URL และรหัสลับเก็บไว้ในโน้ต)</div>
             <div class="settings-row">
                 <label>Web app URL (ลงท้ายด้วย /exec)</label>
@@ -240,17 +432,17 @@
                 <label>รหัสลับ (SECRET)</label>
                 <input type="password" id="sync-secret" autocomplete="off" autocapitalize="off" spellcheck="false">
             </div>
-            <button class="btn btn-print" onclick="saveSyncConfig()">🔗 บันทึกและซิงก์ตอนนี้</button>
+            <button class="btn btn-primary" onclick="saveSyncConfig()">บันทึกและซิงก์ตอนนี้</button>
             <button class="btn btn-secondary" onclick="disconnectSync()">ยกเลิกการซิงก์บนเครื่องนี้</button>
             <div class="sync-status" id="syncStatusSettings" style="margin-top:8px;"></div>
         </div>
 
         <div class="card">
-            <div style="font-weight: bold; margin-bottom: 8px;">สำรอง / กู้คืนข้อมูล</div>
-            <div class="settings-hint" style="margin-top:0;">ถ้าไม่ได้เปิดซิงก์ ข้อมูลทั้งหมดจะเก็บอยู่ในเบราว์เซอร์เครื่องนี้เท่านั้น แนะนำให้โหลดไฟล์สำรองเก็บไว้เป็นระยะ เผื่อล้างแคชหรือเปลี่ยนเครื่อง</div>
-            <button class="btn btn-secondary" onclick="exportBackup()">📤 โหลดไฟล์สำรองข้อมูล (.json)</button>
+            <div class="card-title">สำรอง / กู้คืนข้อมูล</div>
+            <div class="settings-hint" style="margin-top:0;">ถ้าไม่ได้เปิดซิงก์ ข้อมูลทั้งหมดจะเก็บอยู่ในเบราว์เซอร์เครื่องนี้เท่านั้น แนะนำให้โหลดไฟล์สำรองเก็บไว้เป็นระยะ</div>
+            <button class="btn btn-secondary" onclick="exportBackup()">โหลดไฟล์สำรองข้อมูล (.json)</button>
             <input type="file" id="import-file-input" accept="application/json" style="display:none" onchange="importBackup(event)">
-            <button class="btn btn-secondary" onclick="document.getElementById('import-file-input').click()">📥 กู้คืนข้อมูลจากไฟล์สำรอง</button>
+            <button class="btn btn-secondary" onclick="document.getElementById('import-file-input').click()">กู้คืนข้อมูลจากไฟล์สำรอง</button>
         </div>
     </div>
 </div>
@@ -478,7 +670,8 @@
             document.getElementById(`tabbtn-${t}`).classList.toggle('active', t === name);
         });
         if (name === 'monthly') renderMonthlySummary();
-        if (name === 'settings') { loadRatesIntoForm(); loadSyncConfigIntoForm(); }
+        if (name === 'settings') { loadRatesIntoForm(); loadSyncConfigIntoForm(); renderThemeGrid(); loadPunchRound(); }
+        window.scrollTo(0, 0);
     }
 
     function getStorageKey() {
@@ -508,6 +701,7 @@
 
     function changeMonth() {
         const saved = storageGet(getStorageKey());
+        try { localStorage.setItem(LAST_MONTH_KEY, JSON.stringify({ y: +document.getElementById('sel-year').value, m: +document.getElementById('sel-month').value })); } catch (e) {}
         const y = parseInt(document.getElementById('sel-year').value);
         const m = parseInt(document.getElementById('sel-month').value);
 
@@ -570,6 +764,7 @@
 
         applyColors();
         loadData();
+        renderPunchCard();
     }
 
     function addRow(tbody, d, month, year, isPrev) {
@@ -582,14 +777,16 @@
 
         const tr = document.createElement('tr');
         tr.id = `row-${id}`;
+        const now = new Date();
+        if (now.getFullYear() === year && now.getMonth() === month && now.getDate() === d) tr.classList.add('is-today');
         tr.innerHTML = `
                 <td class="day-cell" onclick="editNote('${id}')" title="แตะเพื่อใส่หมายเหตุแทนเวลา">${d}</td>
-                <td>${thDays[dw]}</td>
+                <td class="dow">${thDays[dw]}</td>
                 <td id="incell-${id}"><input type="time" id="in-${id}" oninput="calc()" onchange="calc()"><div class="day-note" id="note-${id}" onclick="editNote('${id}')"></div></td>
                 <td id="outcell-${id}"><input type="time" id="out-${id}" oninput="calc()" onchange="calc()"></td>
-                <td id="work-${id}">0:00</td>
-                <td id="ot-${id}">0:00</td>
-                <td class="no-export" id="money-${id}">0.00</td>
+                <td class="num" id="work-${id}">0:00</td>
+                <td class="num" id="ot-${id}">0:00</td>
+                <td class="no-export num money" id="money-${id}">0.00</td>
         `;
         tbody.appendChild(tr);
     }
@@ -619,6 +816,12 @@
         calc();
     }
 
+    function hexToRgba(hex, a) {
+        const m = /^#?([0-9a-f]{2})([0-9a-f]{2})([0-9a-f]{2})$/i.exec(hex || "");
+        if (!m) return hex;
+        return `rgba(${parseInt(m[1], 16)}, ${parseInt(m[2], 16)}, ${parseInt(m[3], 16)}, ${a})`;
+    }
+
     function applyColors() {
         const hlColor = document.getElementById('hl-color').value;
         const swatch = document.getElementById('hl-color-swatch');
@@ -628,13 +831,11 @@
             const meta = window.rowMeta[id];
             if (!row || !meta) return;
 
-            if (meta.isSun) {
-                row.style.backgroundColor = "#ffe5d0";
-            } else if (meta.isPrev) {
-                row.style.backgroundColor = hlColor;
-            } else {
-                row.style.backgroundColor = "";
-            }
+            // วันอาทิตย์ใช้สีจากธีม, แถววันจากเดือนก่อนหน้าใช้สีที่ผู้ใช้เลือก (ทำให้อ่อนลง ใส่ inline เพื่อให้ติดไปกับรูปด้วย)
+            row.classList.toggle('is-sun', meta.isSun);
+            row.querySelectorAll('td').forEach(td => {
+                td.style.backgroundColor = (meta.isPrev && !meta.isSun) ? hexToRgba(hlColor, 0.38) : "";
+            });
         });
     }
 
@@ -695,7 +896,10 @@
             }
 
             document.getElementById(`work-${id}`).innerText = wStr;
-            document.getElementById(`ot-${id}`).innerText = oStr;
+            const otEl = document.getElementById(`ot-${id}`);
+            otEl.innerText = oStr;
+            otEl.classList.toggle('ot-pos', inVal && outVal && !meta.note && oStr !== "0:00" && !oStr.startsWith('-'));
+            otEl.classList.toggle('ot-neg', oStr.startsWith('-'));
             document.getElementById(`money-${id}`).innerText = dayMoney.toFixed(2);
         });
 
@@ -706,6 +910,7 @@
         document.getElementById('sum-ot-money').innerText = fmtMoney(tOtMoney);
         document.getElementById('sum-sun-money').innerText = fmtMoney(tSunMoney);
         document.getElementById('sum-total-money').innerText = fmtMoney(rates.baseSalary + tOtMoney + tSunMoney);
+        renderPunchCard();
 
         saveData();
     }
@@ -966,17 +1171,24 @@
         const hideElements = document.querySelectorAll('.no-export');
         hideElements.forEach(el => el.classList.add('hide-for-export'));
 
+        const html = document.documentElement;
+        const prevTheme = html.dataset.theme;
+        if (prevTheme === 'galaxy') html.dataset.theme = 'minimal'; // ใบลงเวลาควรเป็นกระดาษสีอ่อนเสมอ
+        document.body.classList.add('exporting');
         document.getElementById('app').style.maxWidth = "800px";
         window.scrollTo(0,0);
 
         const restoreUI = () => {
             hideElements.forEach(el => el.classList.remove('hide-for-export'));
-            document.getElementById('app').style.maxWidth = "650px";
+            document.getElementById('app').style.maxWidth = "";
+            html.dataset.theme = prevTheme;
+            document.body.classList.remove('exporting');
         };
 
-        html2canvas(document.getElementById('view-daily'), {
+        const sheet = document.getElementById('sheet');
+        html2canvas(sheet, {
             scale: 2,
-            backgroundColor: "#f4f6f9",
+            backgroundColor: getComputedStyle(document.body).backgroundColor,
             windowWidth: document.documentElement.scrollWidth,
             windowHeight: document.documentElement.scrollHeight
         }).then(canvas => {
@@ -1259,33 +1471,230 @@
 
     // เซฟข้อมูลซ้ำอีกชั้นตอนสลับแอป/ปิดแท็บ/รีเฟรช กันข้อมูลหายบนมือถือ (iOS Safari มักไม่ยิง beforeunload)
     document.addEventListener("visibilitychange", () => {
-        if (document.visibilityState === "hidden") { saveData(); syncPush(true); }
-        else if (getSyncConfig()) syncNow(); // กลับมาเปิดแอป: ดึงข้อมูลล่าสุดจากคลาวด์
+        if (document.visibilityState === "hidden") { saveData(); syncPush(true); return; }
+        // กลับมาเปิดแอป: iPhone มักเก็บแอปค้างไว้ในหน่วยความจำ (ไม่โหลดหน้าใหม่) จึงต้องเช็กเดือนที่ควรเปิดตรงนี้ด้วย
+        if (tableReady) {
+            const target = pickStartMonth();
+            if (ymCompare(target, selectedMonth()) > 0) { selectMonth(target); changeMonth(); }
+            else renderPunchCard();
+        }
+        if (getSyncConfig()) syncNow(); // ดึงข้อมูลล่าสุดจากคลาวด์
     });
     window.addEventListener("pagehide", saveData);
     window.addEventListener("beforeunload", saveData);
 
-    // เปิดแอปมาให้อยู่ที่เดือน/ปีปัจจุบันเสมอ (เดิม hardcode ไว้ที่กันยายน 2026)
-    function selectCurrentMonth() {
-        const now = new Date();
-        const y = String(now.getFullYear());
+    // ---- เลือกเดือนที่จะเปิด ----
+    // เปิดที่ "ชีตของวันนี้" — ช่วงท้ายเดือนที่ถูกดึงไปรวมกับชีตเดือนถัดไป (แถบสี เช่น 27-31) จะเปิดชีตเดือนถัดไป
+    // แต่ถ้าเดือนที่เปิดล่าสุดใหม่กว่านั้น ให้เปิดเดือนที่เปิดล่าสุดแทน (ดูเดือนเก่าย้อนหลังแล้วจะไม่ค้างอยู่ที่เดือนเก่า)
+    const LAST_MONTH_KEY = "ts_last_month";
+    function ymCompare(a, b) { return (a.y - b.y) * 12 + (a.m - b.m); }
+    function sheetForDate(date) {
+        const y = date.getFullYear(), m = date.getMonth(), d = date.getDate();
+        let ny = y, nm = m + 1;
+        if (nm > 11) { nm = 0; ny++; }
+        let range = getDefaultRange();
+        try {
+            const next = JSON.parse(storageGet(`timesheet_${ny}_${nm}`) || "null");
+            if (next && next.prevStart !== undefined && next.prevStart !== "" && next.prevEnd !== undefined && next.prevEnd !== "") range = { start: next.prevStart, end: next.prevEnd };
+        } catch (e) {}
+        const s = parseInt(range.start), e = parseInt(range.end);
+        if (!isNaN(s) && !isNaN(e) && s <= e && d >= s && d <= e) return { y: ny, m: nm };
+        return { y, m };
+    }
+    function pickStartMonth() {
+        const target = sheetForDate(new Date());
+        try {
+            const last = JSON.parse(localStorage.getItem(LAST_MONTH_KEY) || "null");
+            if (last && typeof last.y === 'number' && typeof last.m === 'number' && ymCompare(last, target) > 0) return last;
+        } catch (e) {}
+        return target;
+    }
+    function ensureYearOption(y) {
         ['sel-year', 'summary-year'].forEach(selId => {
             const sel = document.getElementById(selId);
-            if (![...sel.options].some(o => o.value === y)) {
+            if (![...sel.options].some(o => o.value === String(y))) {
                 const opt = document.createElement('option');
-                opt.value = y; opt.text = y;
-                sel.appendChild(opt);
+                opt.value = String(y); opt.text = String(y);
+                const after = [...sel.options].find(o => +o.value > y);
+                sel.insertBefore(opt, after || null);
             }
-            sel.value = y;
         });
-        document.getElementById('sel-month').value = String(now.getMonth());
+    }
+    function selectMonth(ym) {
+        ensureYearOption(ym.y);
+        document.getElementById('sel-year').value = String(ym.y);
+        document.getElementById('sel-month').value = String(ym.m);
+        document.getElementById('summary-year').value = String(ym.y);
+    }
+    function selectedMonth() {
+        return { y: +document.getElementById('sel-year').value, m: +document.getElementById('sel-month').value };
+    }
+    function shiftMonth(delta) {
+        const cur = selectedMonth();
+        let m = cur.m + delta, y = cur.y;
+        if (m < 0) { m = 11; y--; }
+        if (m > 11) { m = 0; y++; }
+        selectMonth({ y, m });
+        changeMonth();
+    }
+
+    // ---- ลงเวลาด่วน (Quick punch) ----
+    const PUNCH_ROUND_KEY = "ts_punch_round";
+    function getPunchRound() {
+        try { const v = localStorage.getItem(PUNCH_ROUND_KEY); if (v !== null) return parseInt(v) || 0; } catch (e) {}
+        return 10;
+    }
+    function loadPunchRound() { document.getElementById('set-punchRound').value = String(getPunchRound()); }
+    function savePunchRound() {
+        try { localStorage.setItem(PUNCH_ROUND_KEY, document.getElementById('set-punchRound').value); } catch (e) {}
+        renderPunchCard();
+    }
+    function hhmm(mins) {
+        mins = ((mins % 1440) + 1440) % 1440;
+        return `${Math.floor(mins / 60).toString().padStart(2, '0')}:${(mins % 60).toString().padStart(2, '0')}`;
+    }
+    // เวลาเข้าปัดขึ้น เวลาออกปัดลง
+    function punchTime(kind) {
+        const n = new Date();
+        const step = getPunchRound();
+        let mins = n.getHours() * 60 + n.getMinutes();
+        if (step > 0) mins = kind === 'in' ? Math.ceil(mins / step) * step : Math.floor(mins / step) * step;
+        return hhmm(mins);
+    }
+    function todayRowId() {
+        const n = new Date();
+        return (window.activeRows || []).find(id => {
+            const r = window.rowMeta[id];
+            return r && r.y === n.getFullYear() && r.m === n.getMonth() && r.d === n.getDate();
+        }) || null;
+    }
+    function renderPunchCard() {
+        const card = document.getElementById('punch-card');
+        if (!card) return;
+        const n = new Date();
+        document.getElementById('today-label').innerText = `${thDays[n.getDay()]} ${n.getDate()} ${monthsThai[n.getMonth()]} ${n.getFullYear()}`;
+        const id = todayRowId();
+        const clock = hhmm(n.getHours() * 60 + n.getMinutes());
+        if (!id) {
+            card.innerHTML = `<div class="punch"><div class="info"><div class="day">วันนี้ไม่อยู่ในชีตเดือนนี้</div><div class="clock num">${clock}</div></div>
+                <div class="punch-actions"><button class="btn-punch" onclick="goToToday()">ไปชีตของวันนี้</button></div></div>`;
+            return;
+        }
+        const meta = window.rowMeta[id];
+        const inV = document.getElementById(`in-${id}`).value, outV = document.getElementById(`out-${id}`).value;
+        const times = meta.note
+            ? `หมายเหตุ: <b>${meta.note.replace(/</g, '&lt;')}</b>`
+            : `เข้า <b class="num">${inV || '—'}</b> · ออก <b class="num">${outV || '—'}</b>`;
+        let action;
+        if (meta.note) action = `<div class="punch-done">วันนี้มีหมายเหตุ</div>`;
+        else if (!inV) action = `<button class="btn-punch" onclick="punch('in')">ลงเวลาเข้า ${punchTime('in')}</button>`;
+        else if (!outV) action = `<button class="btn-punch" onclick="punch('out')">ลงเวลาออก ${punchTime('out') < inV ? inV : punchTime('out')}</button>`;
+        else action = `<div class="punch-done">ลงเวลาครบแล้ว ✓</div><button class="btn-ghost" onclick="punch('out')">แก้เวลาออกเป็น ${punchTime('out')}</button>`;
+        card.innerHTML = `<div class="punch"><div class="info"><div class="day">วันนี้ · ${thDays[n.getDay()]} ${n.getDate()} ${monthsThai[n.getMonth()]}</div>
+            <div class="clock num">${clock}</div><div class="times">${times}</div></div><div class="punch-actions">${action}</div></div>`;
+    }
+    function punch(kind) {
+        const id = todayRowId();
+        if (!id) return;
+        const el = document.getElementById(`${kind}-${id}`);
+        let t = punchTime(kind);
+        // กันเวลาออกที่ปัดลงแล้วน้อยกว่าเวลาเข้า (จะถูกนับเป็นกะข้ามคืน)
+        const inV = document.getElementById(`in-${id}`).value;
+        if (kind === 'out' && inV && t < inV) t = inV;
+        el.value = t;
+        calc();
+        renderPunchCard();
+        const row = document.getElementById(`row-${id}`);
+        row.classList.remove('flash'); void row.offsetWidth; row.classList.add('flash');
+        row.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }
+    function goToToday() {
+        selectMonth(sheetForDate(new Date()));
+        changeMonth();
+    }
+    setInterval(() => { if (document.visibilityState === 'visible') renderPunchCard(); }, 20000);
+
+    // ---- ส่งออก Excel (.csv เปิดได้ใน Excel / Numbers / Google Sheets) ----
+    function csvCell(v) {
+        v = String(v == null ? "" : v);
+        return /[",\n]/.test(v) ? `"${v.replace(/"/g, '""')}"` : v;
+    }
+    function exportExcel() {
+        saveData();
+        const { y, m } = selectedMonth();
+        const rows = [[`Time sheet for ${monthsEng[m]} ${y}`], [document.querySelector('.sheet .name').innerText], [],
+            ['วันที่', 'วัน', 'เวลาเข้างาน', 'เวลาเลิกงาน', 'ชั่วโมงทำงานรวม', 'โอที', 'รายได้ (บาท)', 'หมายเหตุ']];
+        window.activeRows.forEach(id => {
+            const r = window.rowMeta[id];
+            rows.push([
+                `${String(r.d).padStart(2, '0')}/${String(r.m + 1).padStart(2, '0')}/${r.y}`,
+                thDays[new Date(r.y, r.m, r.d).getDay()],
+                document.getElementById(`in-${id}`).value,
+                document.getElementById(`out-${id}`).value,
+                document.getElementById(`work-${id}`).innerText,
+                document.getElementById(`ot-${id}`).innerText,
+                document.getElementById(`money-${id}`).innerText,
+                r.note || (r.isPrev ? `เดือน${monthsThai[r.m]}` : '')
+            ]);
+        });
+        rows.push([], ['รวมเวลาทำงาน', document.getElementById('sum-work').innerText],
+            ['รวมเวลาโอที', document.getElementById('sum-ot').innerText],
+            ['รวมวันอาทิตย์', document.getElementById('sum-sun').innerText],
+            ['ฐานเงินเดือน', document.getElementById('base-salary-display').innerText],
+            ['ค่าโอทีรวม', document.getElementById('sum-ot-money').innerText],
+            ['ค่าวันอาทิตย์รวม', document.getElementById('sum-sun-money').innerText],
+            ['รายได้สุทธิ', document.getElementById('sum-total-money').innerText],
+            ['หมายเหตุ', document.getElementById('note-text').innerText]);
+        // ﻿ (BOM) ทำให้ Excel อ่านภาษาไทยถูกต้อง
+        const csv = '﻿' + rows.map(r => r.map(csvCell).join(',')).join('\r\n');
+        const filename = `Timesheet_${monthsEng[m]}_${y}.csv`;
+        const blob = new Blob([csv], { type: 'text/csv;charset=utf-8' });
+        const file = new File([blob], filename, { type: 'text/csv' });
+        if (navigator.canShare && navigator.canShare({ files: [file] })) {
+            navigator.share({ files: [file], title: filename }).catch(() => {});
+            return;
+        }
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.download = filename; link.href = url;
+        document.body.appendChild(link); link.click(); document.body.removeChild(link);
+        setTimeout(() => URL.revokeObjectURL(url), 5000);
+    }
+
+    // ---- ธีม ----
+    const THEMES = [
+        { id: 'minimal', name: 'Modern Minimalist', desc: 'เทาชาร์โคล สะอาดตา', dots: ['#36454f', '#708090', '#d3d3d3', '#ffffff'], bar: '#f4f5f6' },
+        { id: 'rose', name: 'Desert Rose', desc: 'เบอร์กันดี เข้ากับโลโก้', dots: ['#5d2e46', '#b87d6d', '#d4a5a5', '#e8d5c4'], bar: '#f6eee8' },
+        { id: 'frost', name: 'Arctic Frost', desc: 'ฟ้าเหล็ก สดใส', dots: ['#4a6fa5', '#d4e4f7', '#c0c0c0', '#fafafa'], bar: '#eef3f9' },
+        { id: 'galaxy', name: 'Midnight Galaxy', desc: 'โหมดมืด สบายตา', dots: ['#2b1e3e', '#4a4e8f', '#a490c2', '#e6e6fa'], bar: '#1a1228' }
+    ];
+    function setTheme(id) {
+        const t = THEMES.find(x => x.id === id) || THEMES[0];
+        document.documentElement.dataset.theme = t.id;
+        try { localStorage.setItem('ts_theme', t.id); } catch (e) {}
+        document.querySelector('meta[name="theme-color"]').setAttribute('content', t.bar);
+        document.querySelector('meta[name="apple-mobile-web-app-status-bar-style"]').setAttribute('content', t.id === 'galaxy' ? 'black-translucent' : 'default');
+        renderThemeGrid();
+    }
+    function cycleTheme() {
+        const cur = THEMES.findIndex(x => x.id === document.documentElement.dataset.theme);
+        setTheme(THEMES[(cur + 1) % THEMES.length].id);
+    }
+    function renderThemeGrid() {
+        const grid = document.getElementById('theme-grid');
+        if (!grid) return;
+        const cur = document.documentElement.dataset.theme;
+        grid.innerHTML = THEMES.map(t => `<button class="theme-opt${t.id === cur ? ' active' : ''}" onclick="setTheme('${t.id}')">
+            <div class="dots">${t.dots.map(c => `<i style="background:${c}"></i>`).join('')}</div>
+            <div class="t">${t.name}</div><div class="d">${t.desc}</div></button>`).join('');
     }
 
     // ก่อนเปิดตาราง: เช็กว่า localStorage ถูกล้างไปหรือเปล่า ถ้าใช่ให้กู้คืนจาก IndexedDB สำรองก่อน
     window.addEventListener("load", () => {
-        selectCurrentMonth();
+        setTheme(document.documentElement.dataset.theme);
         hydrateFromBackupIfEmpty().finally(() => {
             if (!getSyncConfig()) applyDataFixesOnce();
+            selectMonth(pickStartMonth());
             changeMonth();
             if (getSyncConfig()) syncNow();
         });
